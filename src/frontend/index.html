@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>硒产业智能体 · 数据分析</title>
+    <link rel="preconnect" href="https://cdn.plot.ly" />
+    <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+    <style>
+        :root {
+            --bg: #0b0f17;
+            --card: rgba(18, 24, 38, 0.75);
+            --text: #e5e7eb;
+            --muted: #94a3b8;
+            --accent: #6ee7ff;
+            --accent2: #a78bfa;
+            --border: rgba(148, 163, 184, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+            margin: 0;
+            background: radial-gradient(1200px 800px at 10% -10%, #0f172a 0%, #0b0f17 60%, #0b0f17 100%);
+            color: var(--text);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px;
+        }
+
+        header {
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+
+        .spark {
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 20px;
+            background: var(--card);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .input {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center;
+        }
+
+        input[type="file"] {
+            color: var(--muted);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 140px;
+            resize: vertical;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text);
+            padding: 12px;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+        }
+
+        .chart {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            background: linear-gradient(145deg, rgba(17, 24, 39, 0.8), rgba(17, 24, 39, 0.6));
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            overflow: hidden;
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        button {
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: linear-gradient(90deg, rgba(110, 231, 255, 0.2), rgba(167, 139, 250, 0.2));
+            color: var(--text);
+            cursor: pointer;
+            transition: transform 120ms ease, box-shadow 120ms ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="title">硒产业智能体 · <span class="spark">可视化与报告</span></div>
+            <div class="muted">上传数据 + 填写需求，生成图表与报告</div>
+        </header>
+
+        <div class="card">
+            <div class="row">
+                <div>
+                    <label class="muted">选择数据文件（CSV/XLS/XLSX）</label>
+                    <div class="input">
+                        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" />
+                        <button id="analyzeBtn">分析</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="muted">需求 / 期望结果（可选）</label>
+                    <textarea id="promptInput" placeholder="例如：请重点分析不同地区的供需与价格关联，输出结论与建议。"></textarea>
+                </div>
+            </div>
+            <span id="status" class="muted"></span>
+        </div>
+
+        <div class="card">
+            <h2>数据摘要</h2>
+            <pre id="summary"
+                style="max-height:260px; overflow:auto; background:rgba(15,23,42,0.4); padding:12px; border-radius:10px;"></pre>
+        </div>
+
+        <div class="card">
+            <h2>可视化图表</h2>
+            <div id="charts" class="charts"></div>
+        </div>
+
+        <div class="card">
+            <h2>DeepSeek 建议与分析</h2>
+            <textarea id="deepseekText" readonly></textarea>
+        </div>
+
+        <div class="card">
+            <h2>Coze 行业报告</h2>
+            <textarea id="cozeText" readonly></textarea>
+        </div>
+
+        <script src="/static/main.js"></script>
+</body>
+
+</html>
