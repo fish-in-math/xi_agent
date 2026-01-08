@@ -1,5 +1,27 @@
 const $ = (id) => document.getElementById(id);
 
+// Dynamically load a script by URL
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error(`Failed to load: ${src}`));
+        document.head.appendChild(s);
+    });
+}
+
+// Ensure Plotly is available; try fallback CDN if missing
+async function ensurePlotly() {
+    if (window.Plotly) return;
+    try {
+        await loadScript("https://cdn.plot.ly/plotly-2.29.1.min.js");
+    } catch {
+        await loadScript("https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.29.1/plotly.min.js");
+    }
+    if (!window.Plotly) throw new Error("Plotly 加载失败，请检查网络或 CDN 访问");
+}
+
 const API_BASE = ""; // same origin
 
 const BASE_LAYOUT = {
@@ -27,6 +49,14 @@ $("analyzeBtn").addEventListener("click", async () => {
         return;
     }
     $("status").textContent = "正在上传与分析…";
+
+    try {
+        await ensurePlotly();
+    } catch (e) {
+        console.error(e);
+        $("status").textContent = `出错：${e.message}`;
+        return;
+    }
 
     const form = new FormData();
     form.append("file", file);

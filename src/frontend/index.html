@@ -7,6 +7,16 @@
     <title>硒产业智能体 · 数据分析</title>
     <link rel="preconnect" href="https://cdn.plot.ly" />
     <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+    <script>
+        // Fallback: if Plotly fails to load from cdn.plot.ly, try jsDelivr
+        (function ensurePlotlyGlobal() {
+            if (window.Plotly) return;
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.29.1/plotly.min.js';
+            s.async = false;
+            document.head.appendChild(s);
+        })();
+    </script>
     <style>
         :root {
             --bg: #0b0f17;
