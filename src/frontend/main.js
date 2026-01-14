@@ -89,10 +89,10 @@ $("analyzeBtn").addEventListener("click", async () => {
 
         // DeepSeek text
         const deepText = [data.deepseek_suggestions, "\n\n", data.deepseek_analysis].join("");
-        $("deepseekText").value = deepText;
+        $("deepseekText").innerHTML = marked.parse(deepText);
 
         // Coze
-        $("cozeText").value = data.coze_report;
+        $("cozeText").innerHTML = marked.parse(data.coze_report);
     } catch (err) {
         console.error(err);
         $("status").textContent = `出错：${err}`;

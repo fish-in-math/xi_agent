@@ -137,6 +137,18 @@
             transform: translateY(-1px);
             box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
         }
+
+        .output-box {
+            width: 100%;
+            min-height: 140px;
+            resize: vertical;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text);
+            padding: 12px;
+            overflow: auto;
+        }
     </style>
 </head>
 
@@ -177,14 +189,15 @@
 
         <div class="card">
             <h2>DeepSeek 建议与分析</h2>
-            <textarea id="deepseekText" readonly></textarea>
+            <div id="deepseekText" class="output-box"></div>
         </div>
 
         <div class="card">
             <h2>Coze 行业报告</h2>
-            <textarea id="cozeText" readonly></textarea>
+            <div id="cozeText" class="output-box"></div>
         </div>
 
+        <script src="/static/marked.js"></script>
         <script src="/static/main.js"></script>
 </body>
 
