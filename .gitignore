@@ -1,0 +1,7 @@
+# 忽略所有 .env 开头的环境文件
+.env
+.env.*
+# 保留示例环境文件（如果需要共享配置模板）
+!.env.example
+# 忽略 BFG Repo-Cleaner 的 JAR 文件
+bfg-1.15.0.jar

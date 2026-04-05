@@ -18,6 +18,11 @@ pip install -r requirements.txt
 - `DEEPSEEK_API_KEY`: DeepSeek API Key
 - `DEEPSEEK_API_BASE` (可选): DeepSeek API Base（默认 `https://api.deepseek.com/v1`）
 - `DEEPSEEK_MODEL` (可选): 模型名（默认 `deepseek-chat`）
+- `VOLC_WEBSEARCH_API_KEY`: 火山联网搜索 API Key（Bearer）
+- `VOLC_WEBSEARCH_API_URL` (可选): 联网搜索接口地址（默认 `https://open.feedcoopapi.com/search_api/web_search`）
+- `VOLC_WEBSEARCH_SEARCH_TYPE` (可选): 搜索类型（默认 `web_summary`）
+- `VOLC_WEBSEARCH_COUNT` (可选): 每次联网搜索条数（默认 `5`）
+- `VOLC_WEBSEARCH_TIMEOUT` (可选): 联网搜索超时秒数（默认 `25`）
 
 `.env` 示例：
 
@@ -28,6 +33,11 @@ COZE_USER_ID=local_user
 DEEPSEEK_API_KEY=ds_xxxxxxxx
 DEEPSEEK_API_BASE=https://api.deepseek.com/v1
 DEEPSEEK_MODEL=deepseek-chat
+VOLC_WEBSEARCH_API_KEY=your_api_key
+VOLC_WEBSEARCH_API_URL=https://open.feedcoopapi.com/search_api/web_search
+VOLC_WEBSEARCH_SEARCH_TYPE=web_summary
+VOLC_WEBSEARCH_COUNT=5
+VOLC_WEBSEARCH_TIMEOUT=25
 ```
 
 ## 本地运行（Windows）

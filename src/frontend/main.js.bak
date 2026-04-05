@@ -1,0 +1,457 @@
+﻿const $ = (id) => document.getElementById(id);
+const STORAGE_KEY = "xi_agent_chat_sessions_v1";
+
+// Dynamically load a script by URL
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error(`Failed to load: ${src}`));
+        document.head.appendChild(s);
+    });
+}
+
+// Ensure Plotly is available; try fallback CDN if missing
+async function ensurePlotly() {
+    if (window.Plotly) return;
+    try {
+        await loadScript("https://cdn.plot.ly/plotly-2.29.1.min.js");
+    } catch {
+        await loadScript("https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.29.1/plotly.min.js");
+    }
+    if (!window.Plotly) throw new Error("Plotly 鍔犺浇澶辫触锛岃妫€鏌ョ綉缁滄垨 CDN 璁块棶");
+}
+
+const API_BASE = ""; // same origin
+
+const BASE_LAYOUT = {
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    font: { color: "#334155", family: "Noto Sans SC, PingFang SC, Microsoft YaHei" },
+    margin: { l: 40, r: 20, t: 50, b: 40, pad: 4 },
+    xaxis: { gridcolor: "#f1f5f9", zeroline: false, linecolor: "#cbd5e1" },
+    yaxis: { gridcolor: "#f1f5f9", zeroline: false, linecolor: "#cbd5e1" },
+    legend: { bgcolor: "rgba(255,255,255,0.8)", bordercolor: "#e2e8f0", borderwidth: 1 },
+    hoverlabel: { bgcolor: "#ffffff", bordercolor: "#2dd4bf", font: { color: "#1e293b" } },
+};
+
+const BASE_CONFIG = {
+    responsive: true,
+    displaylogo: false,
+    modeBarButtonsToRemove: ["select2d", "lasso2d", "zoomIn2d", "zoomOut2d", "resetScale2d"],
+};
+
+let analysisContextHint = "";
+let sessions = [];
+let activeSessionId = "";
+
+function uid() {
+    return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function makeSession(title = "鏂板璇?) {
+    return {
+        id: uid(),
+        title,
+        createdAt: Date.now(),
+        messages: [
+            {
+                role: "assistant",
+                content: "浣犲ソ锛屾垜鏄浜т笟鏅鸿兘鍔╂墜銆備綘鍙互鐩存帴寮€濮嬭嚜鐢辨彁闂€?,
+            },
+        ],
+    };
+}
+
+function loadSessions() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+            sessions = [makeSession()];
+            activeSessionId = sessions[0].id;
+            return;
+        }
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            sessions = [makeSession()];
+            activeSessionId = sessions[0].id;
+            return;
+        }
+        sessions = parsed;
+        activeSessionId = sessions[0].id;
+    } catch {
+        sessions = [makeSession()];
+        activeSessionId = sessions[0].id;
+    }
+}
+
+function saveSessions() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+}
+
+function getActiveSession() {
+    return sessions.find((s) => s.id === activeSessionId) || sessions[0];
+}
+
+function shorten(text, n = 20) {
+    if (!text) return "鏂板璇?;
+    return text.length <= n ? text : `${text.slice(0, n)}...`;
+}
+
+function renderHistoryList() {
+    const list = $("historyList");
+    if (!list) return;
+    list.innerHTML = "";
+    sessions.forEach((s) => {
+        const li = document.createElement("li");
+        li.className = `history-item${s.id === activeSessionId ? " active" : ""}`;
+        li.title = s.title || "鏂板璇?;
+
+        const titleSpan = document.createElement("span");
+        titleSpan.className = "session-title";
+        titleSpan.textContent = s.title || "鏂板璇?;
+        li.appendChild(titleSpan);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "delete-btn";
+        deleteBtn.innerHTML = "脳";
+        deleteBtn.title = "鍒犻櫎";
+        deleteBtn.addEventListener("click", (e) => {
+            e.stopPropagation(); // 闃绘瑙﹀彂li鐨勭偣鍑讳簨浠?
+            deleteSession(s.id);
+        });
+        li.appendChild(deleteBtn);
+
+        li.addEventListener("click", () => {
+            activeSessionId = s.id;
+            renderHistoryList();
+            renderMessages();
+        });
+        list.appendChild(li);
+    });
+}
+
+function deleteSession(id) {
+    if (sessions.length === 1) {
+        // 濡傛灉鏄渶鍚庝竴涓紝鐩存帴娓呯┖鍐呭
+        sessions[0] = makeSession();
+        activeSessionId = sessions[0].id;
+    } else {
+        sessions = sessions.filter(s => s.id !== id);
+        // 濡傛灉鍒犻櫎鐨勬槸褰撳墠閫変腑鐨勶紝鍒囧埌绗竴涓?
+        if (activeSessionId === id) {
+            activeSessionId = sessions[0].id;
+        }
+    }
+    saveSessions();
+    renderHistoryList();
+    renderMessages();
+}
+
+function renderMessages() {
+    const box = $("chatMessages");
+    const active = getActiveSession();
+    if (!box || !active) return;
+    box.innerHTML = "";
+    active.messages.forEach((m) => {
+        const row = document.createElement("div");
+        row.className = `msg-wrapper ${m.role}`;
+        
+        const avatar = document.createElement("div");
+        avatar.className = "avatar";
+        avatar.textContent = m.role === "assistant" ? "馃" : "馃懁";
+        
+        const bubble = document.createElement("div");
+        bubble.className = "msg-bubble";
+        
+        if (m.role === "assistant") {
+            bubble.innerHTML = marked.parse(m.content || "");
+        } else {
+            bubble.textContent = m.content || "";
+        }
+        
+        const deleteMsgBtn = document.createElement("button");
+        deleteMsgBtn.className = "delete-msg-btn";
+        deleteMsgBtn.innerHTML = "脳";
+        deleteMsgBtn.title = "鍒犻櫎姝よ褰?;
+        deleteMsgBtn.addEventListener("click", () => {
+            active.messages = active.messages.filter(msg => msg !== m);
+            saveSessions();
+            renderMessages();
+        });
+        
+        row.appendChild(avatar);
+        row.appendChild(bubble);
+        row.appendChild(deleteMsgBtn);
+        box.appendChild(row);
+    });
+    // Add a typing indicator if needed (handled in sendChatMessage)
+    box.scrollTo({
+        top: box.scrollHeight,
+        behavior: 'smooth'
+    });
+}
+
+function appendMessage(role, content) {
+    const active = getActiveSession();
+    if (!active) return;
+    active.messages.push({ role, content });
+    if (role === "user" && active.title === "鏂板璇?) {
+        active.title = shorten(content);
+    }
+    saveSessions();
+    renderHistoryList();
+    renderMessages();
+}
+
+function createNewChat() {
+    const s = makeSession();
+    sessions.unshift(s);
+    activeSessionId = s.id;
+    saveSessions();
+    renderHistoryList();
+    renderMessages();
+}
+
+async function sendChatMessage() {
+    const input = $("chatInput");
+    const chatStatus = $("chatStatus");
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    appendMessage("user", text);
+    input.value = "";
+    chatStatus.textContent = "姝ｅ湪鎬濊€?..";
+
+    const active = getActiveSession();
+    const history = (active.messages || []).filter((m) => m.role === "user" || m.role === "assistant");
+
+    // Add empty assistant message placeholder
+    const msgIndex = active.messages.length;
+    active.messages.push({ role: "assistant", content: "" });
+    renderMessages();
+    const box = $("chatMessages");
+    const lastWrapper = box.lastElementChild;
+    const bubble = lastWrapper ? lastWrapper.querySelector('.msg-bubble') : null;
+
+    try {
+        const res = await fetch(`${API_BASE}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                message: text,
+                history,
+                context_hint: analysisContextHint || undefined,
+            }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            fullText += decoder.decode(value, { stream: true });
+            active.messages[msgIndex].content = fullText;
+            if (bubble) {
+                bubble.innerHTML = window.marked ? marked.parse(fullText) : fullText;
+            }
+            if (box) box.scrollTop = box.scrollHeight;
+        }
+        
+        saveSessions();
+        chatStatus.textContent = "";
+    } catch (err) {
+        if (active.messages[msgIndex]) {
+            active.messages[msgIndex].content = `璇锋眰澶辫触锛?{err}`;
+        }
+        if (bubble) {
+            bubble.textContent = `璇锋眰澶辫触锛?{err}`;
+        }
+        saveSessions();
+        chatStatus.textContent = "鍙戦€佸け璐?;
+    }
+}
+
+function bindChatEvents() {
+    if ($("sendChatBtn")) {
+        $("sendChatBtn").addEventListener("click", sendChatMessage);
+    }
+    if ($("chatInput")) {
+        $("chatInput").addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+    }
+    if ($("newChatBtn")) {
+        $("newChatBtn").addEventListener("click", createNewChat);
+    }
+    if ($("historyToggle")) {
+        $("historyToggle").addEventListener("click", () => {
+            const layout = $("appLayout");
+            if (!layout) return;
+            layout.classList.toggle("history-collapsed");
+            $("historyToggle").textContent = layout.classList.contains("history-collapsed") ? "灞曞紑璁板綍鏍? : "鎶樺彔璁板綍鏍?;
+        });
+    }
+}
+
+function initializeChat() {
+    loadSessions();
+    renderHistoryList();
+    renderMessages();
+    bindChatEvents();
+}
+
+initializeChat();
+
+$("analyzeBtn").addEventListener("click", async () => {
+    const file = $("fileInput").files[0];
+    const prompt = $("promptInput") ? $("promptInput").value.trim() : "";
+    if (!file) {
+        $("status").textContent = "璇烽€夋嫨鏁版嵁鏂囦欢";
+        return;
+    }
+    $("status").textContent = "姝ｅ湪涓婁紶涓庡垎鏋愨€?;
+
+    try {
+        await ensurePlotly();
+    } catch (e) {
+        console.error(e);
+        $("status").textContent = `鍑洪敊锛?{e.message}`;
+        return;
+    }
+
+    const form = new FormData();
+    form.append("file", file);
+    if (prompt) form.append("prompt", prompt);
+
+    try {
+        const res = await fetch(`${API_BASE}/analyze`, {
+            method: "POST",
+            body: form,
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        $("status").textContent = "鍒嗘瀽瀹屾垚";
+        analysisContextHint = `鐢ㄦ埛鍒嗘瀽闇€姹傦細${prompt || "鏃?}\n鏁版嵁鎽樿锛?{JSON.stringify(data.summary)}`;
+
+        // Summary
+        $("summary").textContent = JSON.stringify(data.summary, null, 2);
+
+        // Charts
+        const charts = $("charts");
+        charts.innerHTML = "";
+        (data.figures || []).forEach((fig, i) => {
+            const div = document.createElement("div");
+            div.className = "chart";
+            div.id = `plot-${i}`;
+            div.style.minHeight = "320px";
+            charts.appendChild(div);
+            const layout = { ...BASE_LAYOUT, ...(fig.layout || {}), autosize: true };
+            Plotly.newPlot(div.id, fig.data, layout, BASE_CONFIG);
+        });
+
+        // DeepSeek text
+        const deepText = [data.deepseek_suggestions, "\n\n", data.deepseek_analysis].join("");
+        $("deepseekText").innerHTML = marked.parse(deepText);
+
+        // Coze
+        $("cozeText").innerHTML = marked.parse(data.coze_report);
+
+        appendMessage("assistant", "鏁版嵁鍒嗘瀽宸插畬鎴愩€備綘鍙互缁х画鍦ㄤ笂鏂硅嚜鐢辨彁闂紝鎴戜細缁撳悎鏈€鏂板垎鏋愮粨鏋滃洖绛斻€?);
+        if(document.getElementById("exportPdfBtn")) document.getElementById("exportPdfBtn").style.display = "inline-flex";
+    } catch (err) {
+        console.error(err);
+        $("status").textContent = `鍑洪敊锛?{err}`;
+    }
+});
+
+
+if (document.getElementById("exportPdfBtn")) {
+    document.getElementById("exportPdfBtn").addEventListener("click", () => {
+        const element = document.getElementById("reportContainer");
+        if (!element) return;
+
+        const summary = document.getElementById("summary");
+        let oldMaxHeight = "";
+        let oldOverflow = "";
+        if (summary) {
+            oldMaxHeight = summary.style.maxHeight;
+            oldOverflow = summary.style.overflow;
+            summary.style.maxHeight = "none";
+            summary.style.overflow = "visible";
+        }
+
+        const deepseekText = document.getElementById("deepseekText");
+        let dsMaxHeight = "", dsOverflow = "";
+        if (deepseekText) {
+            dsMaxHeight = deepseekText.style.maxHeight;
+            dsOverflow = deepseekText.style.overflow;
+            deepseekText.style.maxHeight = "none";
+            deepseekText.style.overflow = "visible";
+        }
+        
+        const cozeText = document.getElementById("cozeText");
+        let czMaxHeight = "", czOverflow = "";
+        if (cozeText) {
+            czMaxHeight = cozeText.style.maxHeight;
+            czOverflow = cozeText.style.overflow;
+            cozeText.style.maxHeight = "none";
+            cozeText.style.overflow = "visible";
+        }
+
+        const btn = document.getElementById("exportPdfBtn");
+        const originalText = btn.textContent;
+        btn.textContent = "鐢熸垚涓?..";
+        btn.disabled = true;
+
+        const opt = {
+            margin:       0.3,
+            filename:     '纭呬骇涓氭暟鎹垎鏋愭姤鍛?pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, logging: false },
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+
+        // html2pdf returns a promise-like object
+        html2pdf().set(opt).from(element).save().then(() => {
+            if (summary) {
+                summary.style.maxHeight = oldMaxHeight;
+                summary.style.overflow = oldOverflow;
+            }
+            if (deepseekText) {
+                deepseekText.style.maxHeight = dsMaxHeight;
+                deepseekText.style.overflow = dsOverflow;
+            }
+            if (cozeText) {
+                cozeText.style.maxHeight = czMaxHeight;
+                cozeText.style.overflow = czOverflow;
+            }
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }).catch(err => {
+            console.error(err);
+            if (summary) {
+                summary.style.maxHeight = oldMaxHeight;
+                summary.style.overflow = oldOverflow;
+            }
+            if (deepseekText) {
+                deepseekText.style.maxHeight = dsMaxHeight;
+                deepseekText.style.overflow = dsOverflow;
+            }
+            if (cozeText) {
+                cozeText.style.maxHeight = czMaxHeight;
+                cozeText.style.overflow = czOverflow;
+            }
+            btn.textContent = "澶辫触, 璇烽噸璇?;
+            btn.disabled = false;
+        });
+    });
+}
