@@ -5,3 +5,7 @@
 !.env.example
 # 忽略 BFG Repo-Cleaner 的 JAR 文件
 bfg-1.15.0.jar
+# 脚本可能包含敏感信息，建议忽略
+update.sh 
+# 忽略 Python 的缓存文件夹
+__pycache__/
