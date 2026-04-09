@@ -535,6 +535,39 @@
             font-weight: 600;
         }
 
+        .msg-bubble .citations-fold {
+            margin-top: 10px;
+            border: 1px solid #dbeafe;
+            border-radius: 10px;
+            background: #f8fbff;
+            padding: 6px 10px;
+        }
+
+        .msg-bubble .citations-fold summary {
+            cursor: pointer;
+            color: #1d4ed8;
+            font-weight: 600;
+            list-style: none;
+            outline: none;
+        }
+
+        .msg-bubble .citations-fold summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .msg-bubble .citations-fold[open] summary {
+            margin-bottom: 6px;
+        }
+
+        .msg-bubble .citations-body ol {
+            margin: 0;
+            padding-left: 1.3em;
+        }
+
+        .msg-bubble .citations-body p {
+            margin: 0;
+        }
+
         .composer {
             position: relative;
             background: rgba(255, 255, 255, 0.6);
@@ -666,17 +699,56 @@
             font-size: 13px;
         }
 
+        .viz-action-btn {
+            width: 84px;
+            height: 40px;
+            padding: 0;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1;
+        }
+
+        .viz-action-btn-new {
+            background: #ffffff;
+            color: #475569;
+            border: 1px solid #d1d5db;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        }
+
+        .viz-action-btn-new:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+        }
+
         .workbench-viewport {
-            margin-top: 12px;
-            max-height: clamp(420px, 68vh, 960px);
-            overflow: auto;
+            width: 90%;
+            max-width: 100%;
+            margin: 12px auto 0;
+            padding: 0 6px 8px;
+            max-height: none;
+            overflow-x: auto;
+            overflow-y: visible;
             border-radius: 16px;
         }
 
         .workbench-chart {
-            min-height: 420px;
-            max-width: none;
+            width: 100%;
+            min-height: 520px;
+            min-width: 0;
+            max-width: 100%;
             position: relative;
+            margin: 0 auto;
+        }
+
+        .workbench-chart .plot-container,
+        .workbench-chart .svg-container {
+            width: 100% !important;
+            max-width: 100% !important;
         }
 
         .workbench-viewport .chart:hover {
@@ -896,7 +968,57 @@
             font-family: inherit;
         }
 
-        @media (max-width: 980px) {
+        @media (max-width: 1366px) {
+            .main-area {
+                padding: 18px 20px;
+            }
+
+            .history-panel {
+                width: clamp(176px, 18vw, 220px);
+                padding: 18px 14px;
+                gap: 14px;
+            }
+
+            .chat-panel {
+                width: clamp(280px, 30vw, 420px);
+                min-width: 280px;
+            }
+
+            .chat-shell {
+                padding: 14px 16px;
+                gap: 12px;
+            }
+
+            .top-bar {
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .top-bar > div:last-child {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: flex-end;
+            }
+
+            .top-bar > div:last-child button {
+                margin: 0 !important;
+            }
+
+            .chat-resizer {
+                width: 14px;
+            }
+
+            .chat-toggle-btn {
+                display: none !important;
+            }
+
+            .viz-toolbar {
+                gap: 8px;
+            }
+        }
+
+        @media (max-width: 1180px) {
             .main-area {
                 padding: 14px;
             }
@@ -906,40 +1028,66 @@
             }
 
             .history-panel {
-                position: fixed;
-                z-index: 10;
-                top: 0;
-                left: 0;
-                bottom: 0;
-                width: 250px;
-                background: #ffffff;
-                box-shadow: var(--shadow);
+                width: 190px;
             }
 
-            .layout.history-collapsed .history-panel {
-                transform: translateX(-100%);
-                width: 250px;
-                padding: 14px;
-                opacity: 1;
-                border-right: 1px solid var(--border);
+            .chat-panel {
+                width: clamp(280px, 40vw, 420px);
+                min-width: 280px;
             }
 
-            .viz-toolbar {
-                gap: 8px;
+            .composer {
+                padding-right: 164px;
+            }
+
+            .chat-action-btn {
+                width: 146px;
+            }
+
+            .workbench-chart {
+                min-height: 440px;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .history-panel {
+                width: min(68vw, 210px);
+            }
+
+            .chat-panel {
+                min-width: 260px;
+                width: min(52vw, 360px);
+            }
+
+            .chat-action-btn {
+                width: 132px;
+            }
+
+            .workbench-chart {
+                min-height: 380px;
+            }
+
+            .chart {
+                padding: 12px;
             }
         }
 
         .chat-resizer {
-            width: 6px;
+            width: 10px;
             cursor: col-resize;
             background: transparent;
             z-index: 100;
             transition: background 0.2s;
             flex-shrink: 0;
+            touch-action: none;
         }
 
         .chat-resizer:hover, .chat-resizer.dragging {
             background: rgba(52, 211, 153, 0.6);
+        }
+
+        .chat-toggle-btn {
+            display: none !important; /* hidden by default on desktop */
         }
 
         .no-transition {
@@ -967,10 +1115,11 @@
                     <button id="startVizBtn" class="btn-primary" style="margin-right: 8px;">开始可视化</button>
                     <button id="backToReportTopBtn" class="btn-primary" style="display: none; margin-right: 8px;">返回分析页</button>
                     <button id="historyToggle">折叠记录栏</button>
+                    <button id="chatToggle" class="chat-toggle-btn" style="margin-left: 8px;">开启对话</button>
                 </div>
             </div>
 
-            <div class="card">
+            <div id="analysisEntryCard" class="card">
                 <div class="row">
                     <div>
                         <label class="muted">选择数据文件（CSV/XLS/XLSX）</label>
@@ -1013,19 +1162,14 @@
             <div id="workbenchContainer" class="center-view hidden">
                 <div class="card">
                     <h2>🧪 可视化工作台</h2>
-                    <div class="muted" style="margin-bottom: 10px;">选择图表模板即可按预设快速生成。若需高级定制，请使用下方【对话式图表生成】。</div>
-                    <div class="viz-toolbar">
-                        <button class="preset-btn" data-preset="bar">柱状图</button>
-                        <button class="preset-btn" data-preset="line">折线图</button>
-                        <button class="preset-btn" data-preset="scatter">散点图</button>
-                        <button class="preset-btn" data-preset="histogram">直方图</button>
-                        <button class="preset-btn" data-preset="box">箱线图</button>
-                        <button class="preset-btn" data-preset="pie">饼图</button>
-                        <button id="exportChartBtn" class="preset-btn" style="display:none;">导出当前图</button>
+                    
+                    <div id="vizSuggestionBox" style="display:none; margin: 12px 0; padding: 12px; background: rgba(52, 211, 153, 0.1); border-left: 4px solid var(--primary); border-radius: 4px; font-size: 14px; line-height: 1.5; color: #2d3748;">
+                        <strong style="color: var(--primary);">💡 绘图建议：</strong><span id="vizSuggestionText"></span>
                     </div>
 
-                    <div style="margin-bottom: 10px;">
-                        <input type="text" id="vizStyleInput" placeholder="可选：输入样式偏好，如 深色 / 高对比 / 淡蓝 / 学术风" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.82); font-size: 13.5px;" />
+                    <div class="viz-toolbar">
+                        <button id="undoChartBtn" class="preset-btn" style="display:none; background: #fffcf0; border-color: #fbd38d; color: #c05621;">⟲ 撤销上一步</button>
+                        <button id="exportChartBtn" class="preset-btn" style="display:none;">导出当前图</button>
                     </div>
 
                     <div id="workbenchViewport" class="workbench-viewport">
@@ -1036,9 +1180,10 @@
                     
                     <div style="margin-top: 24px; padding: 16px; border-radius: 14px; background: rgba(52, 211, 153, 0.05); border: 1px solid rgba(52, 211, 153, 0.2);">
                         <div class="muted" style="margin-bottom: 8px;">对话式图表生成（支持语义推断）</div>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="vizChatInput" placeholder="例如: 帮我画一个折线图，要nature学术风格，淡蓝色，透明玻璃质感，数据包含所有列" style="flex: 1; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px; background: rgba(255,255,255,0.8);" />
-                            <button id="btnVizChatSend" class="btn-primary" style="padding: 0 24px; border-radius: 10px;">生成</button>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="vizChatInput" placeholder="例如: 帮我画一个折线图，要nature学术风格，淡蓝色，透明玻璃质感，数据包含所有列" style="flex: 1; min-width: 280px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px; background: rgba(255,255,255,0.8);" />
+                            <button id="btnVizNewChart" class="viz-action-btn viz-action-btn-new">新图</button>
+                            <button id="btnVizChatSend" class="btn-primary viz-action-btn">生成</button>
                         </div>
                     </div>
 
@@ -1069,7 +1214,7 @@
     </div>
 
     <script src="/static/marked.js"></script>
-    <script src="/static/main.js?v=19"></script>
+    <script src="/static/main.js?v=41"></script>
 </body>
 
 </html>

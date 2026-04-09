@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import difflib
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
@@ -281,7 +282,12 @@ def _item_relevance_score(item: dict[str, Any], query_tokens: set[str]) -> float
     title_hits = len(query_tokens & title_tokens)
     summary_hits = len(query_tokens & summary_tokens)
 
-    score = (title_hits * 3.0) + (summary_hits * 1.2)
+    # 网页正文/摘要中必须包含与问题相关的词汇，否则判定为不相关
+    if summary_hits == 0:
+        return 0.0
+
+    # 提高正文命中权重的比率，确保内容相关性
+    score = (title_hits * 1.5) + (summary_hits * 3.0)
     if title:
         score += 0.2
     if summary:
@@ -294,16 +300,140 @@ def _sort_candidates_by_relevance(candidates: list[dict[str, Any]], query_text: 
     if not query_tokens:
         return candidates
 
-    indexed = list(enumerate(candidates))
-    indexed.sort(
-        key=lambda pair: (_item_relevance_score(pair[1], query_tokens), -pair[0]),
-        reverse=True,
-    )
-    return [item for _, item in indexed]
+    scored_items = []
+    for idx, item in enumerate(candidates):
+        score = _item_relevance_score(item, query_tokens)
+        if score > 0.0:  # 必须要有命中词才能被选取
+            scored_items.append((score, -idx, item))
+
+    scored_items.sort(reverse=True)
+
+    result_items: list[dict[str, Any]] = []
+    for score, _, item in scored_items:
+        summary = str(
+            item.get("Summary")
+            or item.get("summary")
+            or item.get("Snippet")
+            or item.get("snippet")
+            or item.get("Content")
+            or item.get("content")
+            or ""
+        ).strip()
+
+        is_duplicate = False
+        for saved_item in result_items:
+            saved_summary = str(
+                saved_item.get("Summary")
+                or saved_item.get("summary")
+                or saved_item.get("Snippet")
+                or saved_item.get("snippet")
+                or saved_item.get("Content")
+                or saved_item.get("content")
+                or ""
+            ).strip()
+
+            if summary and saved_summary:
+                ratio = difflib.SequenceMatcher(None, summary, saved_summary).ratio()
+                if ratio > 0.7:  # 相似度 > 70% 视为重复
+                    is_duplicate = True
+                    break
+
+        if not is_duplicate:
+            result_items.append(item)
+
+    return result_items
 
 
-def format_web_search_context(result: dict[str, Any], max_items: int = 5, query_text: str | None = None) -> str:
+def _normalize_keywords(keywords: list[str] | None) -> list[str]:
+    if not keywords:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in keywords:
+        text = str(item or "").strip().lower()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+def _matches_any_keyword(text: str, keywords: list[str]) -> bool:
+    if not text or not keywords:
+        return False
+    lowered = text.lower()
+    return any(keyword in lowered for keyword in keywords)
+
+
+def _filter_candidates_by_policy(
+    candidates: list[dict[str, Any]],
+    preferred_keywords: list[str] | None = None,
+    blocked_keywords: list[str] | None = None,
+    strict_preferred: bool = False,
+) -> list[dict[str, Any]]:
+    preferred = _normalize_keywords(preferred_keywords)
+    blocked = _normalize_keywords(blocked_keywords)
+
+    if not preferred and not blocked:
+        return candidates
+
+    preferred_hits: list[dict[str, Any]] = []
+    normal_hits: list[dict[str, Any]] = []
+
+    for item in candidates:
+        title = str(item.get("Title") or item.get("title") or "")
+        summary = str(
+            item.get("Summary")
+            or item.get("summary")
+            or item.get("Snippet")
+            or item.get("snippet")
+            or item.get("Content")
+            or item.get("content")
+            or ""
+        )
+        url = str(
+            item.get("Url")
+            or item.get("url")
+            or item.get("URL")
+            or item.get("Link")
+            or item.get("link")
+            or item.get("SourceUrl")
+            or item.get("source_url")
+            or ""
+        )
+        text_blob = f"{title} {summary} {url}".strip()
+
+        if blocked and _matches_any_keyword(text_blob, blocked):
+            continue
+
+        if preferred and _matches_any_keyword(text_blob, preferred):
+            preferred_hits.append(item)
+        else:
+            normal_hits.append(item)
+
+    # If we found preferred-domain items, prioritize them to suppress noisy off-topic results.
+    if preferred and preferred_hits:
+        return preferred_hits + normal_hits
+    if preferred and strict_preferred:
+        return []
+    return preferred_hits + normal_hits
+
+
+def format_web_search_context(
+    result: dict[str, Any],
+    max_items: int = 5,
+    query_text: str | None = None,
+    preferred_keywords: list[str] | None = None,
+    blocked_keywords: list[str] | None = None,
+    strict_preferred: bool = False,
+) -> str:
     items = _sort_candidates_by_relevance(_collect_candidate_items(result), query_text)
+    items = _filter_candidates_by_policy(
+        items,
+        preferred_keywords=preferred_keywords,
+        blocked_keywords=blocked_keywords,
+        strict_preferred=strict_preferred,
+    )
 
     lines: list[str] = []
     seen: set[str] = set()
@@ -364,8 +494,21 @@ def format_web_search_context(result: dict[str, Any], max_items: int = 5, query_
     return fallback
 
 
-def extract_web_search_sources(result: dict[str, Any], max_items: int = 5, query_text: str | None = None) -> list[dict[str, str]]:
+def extract_web_search_sources(
+    result: dict[str, Any],
+    max_items: int = 5,
+    query_text: str | None = None,
+    preferred_keywords: list[str] | None = None,
+    blocked_keywords: list[str] | None = None,
+    strict_preferred: bool = False,
+) -> list[dict[str, str]]:
     candidates = _sort_candidates_by_relevance(_collect_candidate_items(result), query_text)
+    candidates = _filter_candidates_by_policy(
+        candidates,
+        preferred_keywords=preferred_keywords,
+        blocked_keywords=blocked_keywords,
+        strict_preferred=strict_preferred,
+    )
 
     sources: list[dict[str, str]] = []
     seen: set[str] = set()

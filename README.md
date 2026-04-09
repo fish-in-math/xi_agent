@@ -2,6 +2,8 @@
 
 一个简单的一体化应用：上传数据 → 自动生成可视化图表（Plotly） → 用 DeepSeek 做洞察建议 → 用 Coze 智能体生成行业报告。
 
+说明：图表工作台中的“自定义改图”能力通过硅基流动 OpenAI 兼容接口调用多模态模型，默认使用 Qwen3.5-35B-A3B，可结合当前图像快照 + 用户指令生成新图。
+
 ## 安装依赖
 
 ```bash
@@ -18,6 +20,10 @@ pip install -r requirements.txt
 - `DEEPSEEK_API_KEY`: DeepSeek API Key
 - `DEEPSEEK_API_BASE` (可选): DeepSeek API Base（默认 `https://api.deepseek.com/v1`）
 - `DEEPSEEK_MODEL` (可选): 模型名（默认 `deepseek-chat`）
+- `VL_API_KEY` (可选): 可视化改图模型密钥
+- `VL_API_BASE` (可选): 可视化改图模型接口 Base（默认 `https://api.siliconflow.cn/v1`）
+- `VL_MODEL` (可选): 可视化改图模型名（默认 `Qwen/Qwen3.5-35B-A3B`）
+- `VL_ENABLE_THINKING` (可选): 是否启用思考模式（默认 `false`，即即时模式）
 - `VOLC_WEBSEARCH_API_KEY`: 火山联网搜索 API Key（Bearer）
 - `VOLC_WEBSEARCH_API_URL` (可选): 联网搜索接口地址（默认 `https://open.feedcoopapi.com/search_api/web_search`）
 - `VOLC_WEBSEARCH_SEARCH_TYPE` (可选): 搜索类型（默认 `web_summary`）
@@ -33,10 +39,14 @@ COZE_USER_ID=local_user
 DEEPSEEK_API_KEY=ds_xxxxxxxx
 DEEPSEEK_API_BASE=https://api.deepseek.com/v1
 DEEPSEEK_MODEL=deepseek-chat
+VL_API_KEY=your_siliconflow_api_key
+VL_API_BASE=https://api.siliconflow.cn/v1
+VL_MODEL=Qwen/Qwen3.5-35B-A3B
+VL_ENABLE_THINKING=false
 VOLC_WEBSEARCH_API_KEY=your_api_key
 VOLC_WEBSEARCH_API_URL=https://open.feedcoopapi.com/search_api/web_search
 VOLC_WEBSEARCH_SEARCH_TYPE=web_summary
-VOLC_WEBSEARCH_COUNT=5
+VOLC_WEBSEARCH_COUNT=your_number
 VOLC_WEBSEARCH_TIMEOUT=25
 ```
 
