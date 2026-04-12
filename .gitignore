@@ -9,3 +9,5 @@ bfg-1.15.0.jar
 update.sh 
 # 忽略 Python 的缓存文件夹
 __pycache__/
+data/
+网页版deepseek生成的报告.md

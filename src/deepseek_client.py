@@ -16,7 +16,7 @@ class DeepSeekError(Exception):
     pass
 
 
-READ_TIMEOUT_SECONDS = 120
+READ_TIMEOUT_SECONDS = 300
 READ_TIMEOUT_RETRY_COUNT = 1
 READ_TIMEOUT_RETRY_DELAY_SECONDS = 1.5
 HTTP_POOL_CONNECTIONS = 32
@@ -36,7 +36,9 @@ CHART_SUGGESTION_BANNED_TERMS = [
     "secondary y",
     "组合图",
 ]
-CHART_SUGGESTION_SAFE_FALLBACK = "建议优先采用折线图、分组柱状图、散点图和热力图进行对比与趋势分析。"
+CHART_SUGGESTION_SAFE_FALLBACK = (
+    "建议优先采用折线图、分组柱状图、散点图和热力图进行对比与趋势分析。"
+)
 
 
 def _read_bool_env(name: str, default: bool) -> bool:
@@ -61,7 +63,9 @@ def _supports_enable_thinking(model: str | None) -> bool:
 
 def _build_http_session() -> requests.Session:
     session = requests.Session()
-    adapter = HTTPAdapter(pool_connections=HTTP_POOL_CONNECTIONS, pool_maxsize=HTTP_POOL_MAXSIZE)
+    adapter = HTTPAdapter(
+        pool_connections=HTTP_POOL_CONNECTIONS, pool_maxsize=HTTP_POOL_MAXSIZE
+    )
     session.mount("https://", adapter)
     session.mount("http://", adapter)
     return session
@@ -106,9 +110,15 @@ def _compact_custom_chart_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     numeric_columns = [str(c) for c in (safe.get("numeric_columns") or [])]
     categorical_columns = [str(c) for c in (safe.get("categorical_columns") or [])]
 
-    columns_preview, columns_omitted = _truncate_list(columns, CUSTOM_SUMMARY_MAX_COLUMNS)
-    numeric_preview, numeric_omitted = _truncate_list(numeric_columns, CUSTOM_SUMMARY_MAX_NUMERIC_COLUMNS)
-    category_preview, category_omitted = _truncate_list(categorical_columns, CUSTOM_SUMMARY_MAX_NUMERIC_COLUMNS)
+    columns_preview, columns_omitted = _truncate_list(
+        columns, CUSTOM_SUMMARY_MAX_COLUMNS
+    )
+    numeric_preview, numeric_omitted = _truncate_list(
+        numeric_columns, CUSTOM_SUMMARY_MAX_NUMERIC_COLUMNS
+    )
+    category_preview, category_omitted = _truncate_list(
+        categorical_columns, CUSTOM_SUMMARY_MAX_NUMERIC_COLUMNS
+    )
 
     compact: Dict[str, Any] = {
         "shape": {"rows": rows, "cols": cols},
@@ -149,7 +159,9 @@ def _compact_custom_chart_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
         for col_name, values in list(top_categories.items())[:2]:
             if not isinstance(values, dict):
                 continue
-            compact_values = dict(list(values.items())[:CUSTOM_SUMMARY_MAX_CATEGORY_ITEMS])
+            compact_values = dict(
+                list(values.items())[:CUSTOM_SUMMARY_MAX_CATEGORY_ITEMS]
+            )
             compact_categories[str(col_name)] = compact_values
         if compact_categories:
             compact["top_categories"] = compact_categories
@@ -177,7 +189,7 @@ def _extract_make_custom_fig_block(code: str) -> str:
     if start_idx < 0:
         return ""
 
-    selected = lines[start_idx: start_idx + CUSTOM_PREVIOUS_CODE_MAX_LINES]
+    selected = lines[start_idx : start_idx + CUSTOM_PREVIOUS_CODE_MAX_LINES]
     return "\n".join(selected).strip()
 
 
@@ -200,7 +212,10 @@ def _compact_previous_code_for_prompt(previous_code: str | None) -> str:
         compact = "\n".join(code.splitlines()[-CUSTOM_PREVIOUS_CODE_MAX_LINES:]).strip()
 
     if len(compact) > CUSTOM_PREVIOUS_CODE_MAX_CHARS:
-        compact = compact[: CUSTOM_PREVIOUS_CODE_MAX_CHARS].rstrip() + "\n# ... truncated for prompt efficiency"
+        compact = (
+            compact[:CUSTOM_PREVIOUS_CODE_MAX_CHARS].rstrip()
+            + "\n# ... truncated for prompt efficiency"
+        )
 
     return compact
 
@@ -226,8 +241,15 @@ def _resolve_deepseek_config() -> tuple[str | None, str, str]:
     # override=True ensures .env edits can take effect for long-running server processes.
     load_dotenv(override=True)
     key = _clean_env_value(os.getenv("DEEPSEEK_API_KEY"))
-    base = os.getenv("DEEPSEEK_API_BASE") or os.getenv("DEEPSEEK_BASE_URL") or "https://api.deepseek.com/v1"
-    model = _clean_env_value(os.getenv("DEEPSEEK_MODEL", "deepseek-chat")) or "deepseek-chat"
+    base = (
+        os.getenv("DEEPSEEK_API_BASE")
+        or os.getenv("DEEPSEEK_BASE_URL")
+        or "https://api.deepseek.com/v1"
+    )
+    model = (
+        _clean_env_value(os.getenv("DEEPSEEK_MODEL", "deepseek-chat"))
+        or "deepseek-chat"
+    )
     return key, _normalize_base_url(base), model
 
 
@@ -236,7 +258,10 @@ def _resolve_vl_viz_config() -> tuple[str | None, str, str]:
     load_dotenv(override=True)
     key = _clean_env_value(os.getenv("VL_API_KEY"))
     base = os.getenv("VL_API_BASE") or "https://api.siliconflow.cn/v1"
-    model = _clean_env_value(os.getenv("VL_MODEL") or "Qwen/Qwen3.5-35B-A3B") or "Qwen/Qwen3.5-35B-A3B"
+    model = (
+        _clean_env_value(os.getenv("VL_MODEL") or "Qwen/Qwen3.5-35B-A3B")
+        or "Qwen/Qwen3.5-35B-A3B"
+    )
     if "/" not in model and re.match(r"(?i)^qwen[\w.-]+$", model):
         model = f"Qwen/{model}"
     return key, _normalize_base_url(base), model
@@ -267,7 +292,9 @@ def _post_chat_raw(
     last_timeout_error: Exception | None = None
     for attempt in range(READ_TIMEOUT_RETRY_COUNT + 1):
         try:
-            resp = _HTTP_SESSION.post(url, json=body, headers=headers, timeout=READ_TIMEOUT_SECONDS)
+            resp = _HTTP_SESSION.post(
+                url, json=body, headers=headers, timeout=READ_TIMEOUT_SECONDS
+            )
             break
         except requests.exceptions.ReadTimeout as exc:
             last_timeout_error = exc
@@ -296,7 +323,9 @@ def _post_chat(messages: list[dict], temperature: float = 0.2) -> str:
     if not key:
         raise DeepSeekError("DEEPSEEK_API_KEY not set in environment")
     if _has_non_ascii(key):
-        raise DeepSeekError("DEEPSEEK_API_KEY appears invalid (contains non-ASCII chars). Please replace placeholder text with a real key.")
+        raise DeepSeekError(
+            "DEEPSEEK_API_KEY appears invalid (contains non-ASCII chars). Please replace placeholder text with a real key."
+        )
     return _post_chat_raw(
         api_key=key,
         base_url=base,
@@ -324,28 +353,37 @@ def _post_chat_stream(messages: list[dict], temperature: float = 0.2):
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        "stream": True
+        "stream": True,
     }
-    
+
     for attempt in range(READ_TIMEOUT_RETRY_COUNT + 1):
         try:
-            with _HTTP_SESSION.post(url, json=body, headers=headers, timeout=READ_TIMEOUT_SECONDS, stream=True) as resp:
+            with _HTTP_SESSION.post(
+                url,
+                json=body,
+                headers=headers,
+                timeout=READ_TIMEOUT_SECONDS,
+                stream=True,
+            ) as resp:
                 if resp.status_code != 200:
                     yield f"[Error] HTTP {resp.status_code}: {resp.text}"
                     return
                 for line in resp.iter_lines():
                     if line:
-                        decoded_line = line.decode('utf-8')
-                        if decoded_line.startswith('data: '):
+                        decoded_line = line.decode("utf-8")
+                        if decoded_line.startswith("data: "):
                             data_str = decoded_line[6:]
-                            if data_str == '[DONE]':
+                            if data_str == "[DONE]":
                                 break
                             try:
                                 data_json = json.loads(data_str)
-                                if 'choices' in data_json and len(data_json['choices']) > 0:
-                                    delta = data_json['choices'][0].get('delta', {})
-                                    if 'content' in delta:
-                                        yield delta['content']
+                                if (
+                                    "choices" in data_json
+                                    and len(data_json["choices"]) > 0
+                                ):
+                                    delta = data_json["choices"][0].get("delta", {})
+                                    if "content" in delta:
+                                        yield delta["content"]
                             except Exception:
                                 pass
                 return
@@ -360,7 +398,9 @@ def _post_chat_stream(messages: list[dict], temperature: float = 0.2):
             return
 
 
-def generate_chart_suggestions(summary: Dict[str, Any], user_prompt: Optional[str] = None) -> str:
+def generate_chart_suggestions(
+    summary: Dict[str, Any], user_prompt: Optional[str] = None
+) -> str:
     prompt = (
         "你是数据可视化专家。基于以下数据摘要，给出30-40字的可视化建议，"
         "推荐适合当前数据结构和维度的图表类型及相应的分析方向（有多适合的就推荐几个，不要强制拼凑）。"
@@ -369,7 +409,10 @@ def generate_chart_suggestions(summary: Dict[str, Any], user_prompt: Optional[st
         + f"摘要: {summary}"
     )
     messages = [
-        {"role": "system", "content": "你是资深数据分析与可视化顾问。语言简练，只输出30-40字核心建议，不要排版修饰。严禁推荐多轴组合图（双轴/双Y轴/次坐标轴）。"},
+        {
+            "role": "system",
+            "content": "你是资深数据分析与可视化顾问。语言简练，只输出30-40字核心建议，不要排版修饰。严禁推荐多轴组合图（双轴/双Y轴/次坐标轴）。",
+        },
         {"role": "user", "content": prompt},
     ]
     suggestion = _post_chat(messages, temperature=0.3)
@@ -382,7 +425,10 @@ def _sanitize_chart_suggestion(text: str) -> str:
         return CHART_SUGGESTION_SAFE_FALLBACK
 
     normalized = raw.lower().replace(" ", "")
-    if any(term.lower().replace(" ", "") in normalized for term in CHART_SUGGESTION_BANNED_TERMS):
+    if any(
+        term.lower().replace(" ", "") in normalized
+        for term in CHART_SUGGESTION_BANNED_TERMS
+    ):
         return CHART_SUGGESTION_SAFE_FALLBACK
     return raw
 
@@ -402,10 +448,14 @@ def generate_custom_figure_code(
     if not vl_key:
         raise DeepSeekError("Visualization model API key not set (VL_API_KEY)")
     if _has_non_ascii(vl_key):
-        raise DeepSeekError("Visualization model API key appears invalid (contains non-ASCII chars). Please replace placeholder text with a real key.")
+        raise DeepSeekError(
+            "Visualization model API key appears invalid (contains non-ASCII chars). Please replace placeholder text with a real key."
+        )
 
     compact_summary = _compact_custom_chart_summary(summary)
-    compact_summary_text = json.dumps(compact_summary, ensure_ascii=False, separators=(",", ":"))
+    compact_summary_text = json.dumps(
+        compact_summary, ensure_ascii=False, separators=(",", ":")
+    )
     compact_previous_code = _compact_previous_code_for_prompt(previous_code)
 
     prompt = (
@@ -423,7 +473,7 @@ def generate_custom_figure_code(
             f"{compact_previous_code}\n"
             "```\n\n"
         )
-    
+
     prompt += (
         "Write a complete Python code snippet containing a function named `make_custom_fig(df)`. "
         "The function should take a pandas DataFrame `df` as input, generate a very beautiful Plotly figure (either using plotly.express or plotly.graph_objects) EXACTLY matching the user's request (like 3D pie charts etc), and return the `fig` object.\n"
@@ -441,7 +491,9 @@ def generate_custom_figure_code(
 
     user_content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
     if chart_image_data_url:
-        user_content.append({"type": "image_url", "image_url": {"url": chart_image_data_url}})
+        user_content.append(
+            {"type": "image_url", "image_url": {"url": chart_image_data_url}}
+        )
 
     messages.append({"role": "user", "content": user_content})
 
@@ -453,7 +505,7 @@ def generate_custom_figure_code(
         temperature=0.1,
         enable_thinking=enable_thinking,
     )
-    
+
     code = code.strip()
     if code.startswith("```python"):
         code = code[9:]
@@ -464,7 +516,11 @@ def generate_custom_figure_code(
     return code.strip()
 
 
-def generate_text_analysis(summary: Dict[str, Any], domain_hint: Optional[str] = None, user_prompt: Optional[str] = None) -> str:
+def generate_text_analysis(
+    summary: Dict[str, Any],
+    domain_hint: Optional[str] = None,
+    user_prompt: Optional[str] = None,
+) -> str:
     hint = domain_hint or "硒产业数据分析"
     prompt = (
         f"请基于以下数据摘要撰写一段300-500字的洞察分析，领域背景：{hint}。"
@@ -494,7 +550,9 @@ def generate_free_chat_reply(
         }
     ]
     if style_directive:
-        messages.append({"role": "system", "content": f"回答风格约束：{style_directive}"})
+        messages.append(
+            {"role": "system", "content": f"回答风格约束：{style_directive}"}
+        )
     if context_hint:
         messages.append({"role": "system", "content": f"上下文信息：{context_hint}"})
 
@@ -510,7 +568,9 @@ def generate_free_chat_reply(
 
     # Re-assert style after history so previous turns don't flatten style consistency.
     if style_directive:
-        messages.append({"role": "system", "content": f"请严格遵循当前模式输出：{style_directive}"})
+        messages.append(
+            {"role": "system", "content": f"请严格遵循当前模式输出：{style_directive}"}
+        )
 
     messages.append({"role": "user", "content": message})
     return _post_chat(messages, temperature=temperature)
@@ -530,7 +590,9 @@ def generate_free_chat_reply_stream(
         }
     ]
     if style_directive:
-        messages.append({"role": "system", "content": f"回答风格约束：{style_directive}"})
+        messages.append(
+            {"role": "system", "content": f"回答风格约束：{style_directive}"}
+        )
     if context_hint:
         messages.append({"role": "system", "content": f"上下文信息：{context_hint}"})
 
@@ -546,7 +608,9 @@ def generate_free_chat_reply_stream(
 
     # Re-assert style after history so previous turns don't flatten style consistency.
     if style_directive:
-        messages.append({"role": "system", "content": f"请严格遵循当前模式输出：{style_directive}"})
+        messages.append(
+            {"role": "system", "content": f"请严格遵循当前模式输出：{style_directive}"}
+        )
 
     messages.append({"role": "user", "content": message})
     for chunk in _post_chat_stream(messages, temperature=temperature):

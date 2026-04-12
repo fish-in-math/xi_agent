@@ -14,7 +14,7 @@ const SNAPSHOT_COMPRESSION_MAX_ATTEMPTS = 10;
 const WORKBENCH_CHART_WIDTH_RATIO = 0.9;
 
 // 全局拦截所有 A 标签点击事件，强制在新标签页打开（防止覆盖当前系统）
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
     const link = e.target.closest('a');
     if (link && link.href) {
         link.setAttribute('target', '_blank');
@@ -489,6 +489,26 @@ let sessions = [];
 let activeSessionId = "";
 let latestAnalysisResult = null;
 let currentCenterView = "report";
+
+function getSelectedFiles() {
+    const fileList = $("fileInput")?.files;
+    if (!fileList) return [];
+    return Array.from(fileList);
+}
+
+function appendFilesToFormData(formData, files) {
+    files.forEach((f) => {
+        formData.append("files", f);
+    });
+}
+
+function formatSelectedFilesForStatus(files) {
+    if (!Array.isArray(files) || files.length === 0) return "未选择文件";
+    if (files.length === 1) return `已选择：${files[0].name}`;
+    const preview = files.slice(0, 2).map((f) => f.name).join("，");
+    const remain = files.length - 2;
+    return remain > 0 ? `已选择 ${files.length} 个文件：${preview} 等 ${remain} 个` : `已选择 ${files.length} 个文件：${preview}`;
+}
 
 const STYLE_ONLY_PROMPT_KEYWORDS = [
     "配色", "颜色", "色系", "主题色", "渐变", "风格", "美化", "学术风", "简约", "高端", "高级",
@@ -1063,11 +1083,11 @@ function renderMessages() {
     active.messages.forEach((m) => {
         const row = document.createElement("div");
         row.className = `msg-wrapper ${m.role}`;
-        
+
         const avatar = document.createElement("div");
         avatar.className = "avatar";
         avatar.textContent = m.role === "assistant" ? "🤖" : "👤";
-        
+
         const contentWrapper = document.createElement("div");
         contentWrapper.className = "msg-content-wrapper";
 
@@ -1334,7 +1354,7 @@ function bindChatEvents() {
             requestWorkbenchResize();
         });
     }
-    
+
     if ($("chatToggle")) {
         $("chatToggle").addEventListener("click", () => {
             const layout = $("appLayout");
@@ -1387,7 +1407,7 @@ function bindCenterViewEvents() {
     if ($("startVizBtn")) {
         $("startVizBtn").addEventListener("click", () => {
             setCenterView("workbench");
-            if ($("vizStatus") && !$("fileInput")?.files?.[0]) {
+            if ($("vizStatus") && getSelectedFiles().length === 0) {
                 $("vizStatus").textContent = "提示：请先选择数据文件，再点击图表模板生成图。";
             }
         });
@@ -1407,7 +1427,7 @@ function bindWorkbenchEvents() {
         btnVizChatSend.addEventListener("click", () => {
             handleVizChatInput(vizChatInput.value.trim());
         });
-        
+
         vizChatInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
                 e.preventDefault();
@@ -1478,18 +1498,18 @@ function resetWorkbenchForNewFigure() {
 async function undoLastChart() {
     if (chartHistory.length === 0) return;
     const lastState = chartHistory.pop();
-    
+
     currentChartCode = lastState.code;
     currentChartFig = lastState.fig;
-    
+
     const chartEl = $("workbenchChart");
     await renderFigureToWorkbench(chartEl, currentChartFig);
-    
+
     const metaEl = $("vizMeta");
     if (metaEl) {
         metaEl.innerHTML = `后台生成代码：<details><summary>点击查看</summary><pre style="font-size:12px;margin:4px 0;background:#f8fafc;padding:8px;border-radius:4px;overflow-x:auto;">${currentChartCode || ""}</pre></details>`;
     }
-    
+
     if (chartHistory.length === 0) {
         $("undoChartBtn").style.display = "none";
     }
@@ -1497,19 +1517,19 @@ async function undoLastChart() {
 
 async function handleVizChatInput(chatText) {
     if (!chatText) return;
-    const file = $("fileInput")?.files?.[0];
+    const selectedFiles = getSelectedFiles();
     const statusEl = $("vizStatus");
     const chartEl = $("workbenchChart");
     const metaEl = $("vizMeta");
     const isFirstWorkbenchGeneration = !currentChartFig && !currentChartCode;
-    
-    if (!file && !currentVizSessionId) {
+
+    if (selectedFiles.length === 0 && !currentVizSessionId) {
         alert("请先在最上方选择要分析的本地数据文件！");
         if (statusEl) statusEl.textContent = "请先在上方选择数据文件。";
         return;
     }
     if (statusEl) statusEl.textContent = "正由大模型动态推断和编写代码...";
-    
+
     // UI state update
     const btnVizChatSend = $("btnVizChatSend");
     const btnVizNewChart = $("btnVizNewChart");
@@ -1528,8 +1548,8 @@ async function handleVizChatInput(chatText) {
 
         if (currentVizSessionId) {
             form.append("viz_session_id", currentVizSessionId);
-        } else if (file) {
-            form.append("file", file);
+        } else if (selectedFiles.length > 0) {
+            appendFilesToFormData(form, selectedFiles);
         }
 
         const shouldSendChartImage = shouldAttachChartImageForPrompt(chatText);
@@ -1555,7 +1575,7 @@ async function handleVizChatInput(chatText) {
             const firstErrLower = String(firstErrText || "").toLowerCase();
             const shouldRetryWithFile = Boolean(
                 currentVizSessionId
-                && file
+                && selectedFiles.length > 0
                 && (
                     firstErrLower.includes("viz_session_id")
                     || firstErrLower.includes("expired")
@@ -1571,7 +1591,7 @@ async function handleVizChatInput(chatText) {
             if (statusEl) statusEl.textContent = "缓存会话已失效，正在自动重传文件重试...";
 
             const retryForm = new FormData();
-            retryForm.append("file", file);
+            appendFilesToFormData(retryForm, selectedFiles);
             retryForm.append("prompt", chatText);
             if (currentChartCode) {
                 retryForm.append("previous_code", currentChartCode);
@@ -1639,30 +1659,34 @@ setCenterView("report");
 
 if ($("fileInput")) {
     $("fileInput").addEventListener("change", () => {
+        const selectedFiles = getSelectedFiles();
         currentChartCode = "";
         currentChartFig = null;
         currentVizSessionId = "";
         chartHistory = [];
         if ($("undoChartBtn")) $("undoChartBtn").style.display = "none";
+        if ($("status")) {
+            $("status").textContent = formatSelectedFilesForStatus(selectedFiles);
+        }
     });
 }
 
 $("analyzeBtn").addEventListener("click", async () => {
-    const file = $("fileInput").files[0];
+    const files = getSelectedFiles();
     const prompt = $("promptInput") ? $("promptInput").value.trim() : "";
-    if (!file) {
+    if (files.length === 0) {
         $("status").textContent = "请选择数据文件";
         return;
     }
-    
+
     // Switch to new file, reset continuous chart code
     currentChartCode = "";
     currentChartFig = null;
     currentVizSessionId = "";
     chartHistory = [];
     if ($("undoChartBtn")) $("undoChartBtn").style.display = "none";
-    
-    $("status").textContent = "正在上传与分析…";
+
+    $("status").textContent = `正在上传与分析 ${files.length} 个文件…`;
 
     try {
         await ensurePlotly();
@@ -1673,7 +1697,7 @@ $("analyzeBtn").addEventListener("click", async () => {
     }
 
     const form = new FormData();
-    form.append("file", file);
+    appendFilesToFormData(form, files);
     if (prompt) form.append("prompt", prompt);
 
     try {
@@ -1685,7 +1709,8 @@ $("analyzeBtn").addEventListener("click", async () => {
         const data = await res.json();
         $("status").textContent = "分析完成";
         currentVizSessionId = data.viz_session_id || "";
-        analysisContextHint = `行业背景：硒产业\n用户分析需求：${prompt || "无"}\n数据摘要：${JSON.stringify(data.summary)}`;
+        const fileNames = (data.upload_meta?.file_names || files.map((f) => f.name) || []).join("，");
+        analysisContextHint = `行业背景：硒产业\n上传文件：${fileNames || "未知"}\n用户分析需求：${prompt || "无"}\n数据摘要：${JSON.stringify(data.summary)}`;
 
         $("summary").textContent = JSON.stringify(data.summary, null, 2);
 

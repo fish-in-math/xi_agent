@@ -12,9 +12,14 @@ ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 
 # Install dependencies first to maximize Docker layer cache hit rate.
 COPY requirements.txt ./
-RUN python -m pip install --upgrade pip -i ${PIP_INDEX_URL} \
-    && python -m pip install -r requirements.txt -i ${PIP_INDEX_URL}
+# 升级pip并安装依赖（使用阿里云源 + 超时设置）
+RUN python -m pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple/ \
+    --default-timeout=100
 
+RUN python -m pip install -r requirements.txt \
+    -i https://mirrors.aliyun.com/pypi/simple/ \
+    --default-timeout=200 \
+    --no-cache-dir
 # Copy only runtime files.
 COPY src ./src
 

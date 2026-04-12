@@ -4,6 +4,7 @@ import io
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Any, Dict
 from urllib.parse import quote
@@ -11,6 +12,7 @@ from uuid import uuid4
 from xml.sax.saxutils import escape
 
 from dotenv import load_dotenv
+
 load_dotenv(override=True)
 
 import numpy as np
@@ -24,7 +26,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .charting import load_dataframe, summarize_dataframe, generate_default_figures
-from .deepseek_client import generate_chart_suggestions, generate_text_analysis, generate_free_chat_reply, generate_free_chat_reply_stream, generate_custom_figure_code, DeepSeekError
+from .deepseek_client import (
+    generate_chart_suggestions,
+    generate_text_analysis,
+    generate_free_chat_reply,
+    generate_free_chat_reply_stream,
+    generate_custom_figure_code,
+    DeepSeekError,
+)
 from .coze_service import generate_industry_report
 from .websearch_client import (
     web_search,
@@ -39,6 +48,7 @@ INDEX_FILE = FRONTEND_DIR / "index.html"
 VIZ_SESSION_TTL_SECONDS = 30 * 60
 VIZ_SESSION_MAX_ITEMS = 12
 _viz_session_cache: dict[str, dict[str, Any]] = {}
+_AI_CALL_POOL = ThreadPoolExecutor(max_workers=6)
 
 app = FastAPI(title="Se Industry Agent (硒产业智能体)")
 app.add_middleware(
@@ -75,7 +85,9 @@ def _prune_viz_session_cache() -> None:
         _viz_session_cache.pop(session_id, None)
 
 
-def _set_viz_session(df: pd.DataFrame, summary: dict[str, Any], session_id: str | None = None) -> str:
+def _set_viz_session(
+    df: pd.DataFrame, summary: dict[str, Any], session_id: str | None = None
+) -> str:
     _prune_viz_session_cache()
     sid = (session_id or "").strip() or uuid4().hex
     _viz_session_cache[sid] = {
@@ -105,6 +117,82 @@ def _get_viz_session(session_id: str) -> tuple[pd.DataFrame, dict[str, Any]] | N
     return df, summary
 
 
+def _collect_upload_files(
+    files: list[UploadFile] | None,
+    file: UploadFile | None,
+) -> list[UploadFile]:
+    uploads: list[UploadFile] = []
+    if files:
+        uploads.extend([f for f in files if f is not None])
+    if file is not None:
+        uploads.append(file)
+    return uploads
+
+
+def _read_upload_bytes(upload: UploadFile) -> bytes:
+    try:
+        return upload.file.read()
+    finally:
+        upload.file.close()
+
+
+def _load_merged_dataframe_from_uploads(
+    uploads: list[UploadFile],
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    if not uploads:
+        raise ValueError("No upload files")
+
+    source_col = "__source_file"
+    frames: list[pd.DataFrame] = []
+    file_summaries: list[dict[str, Any]] = []
+
+    for index, upload in enumerate(uploads, start=1):
+        file_name = str(upload.filename or f"unnamed_{index}")
+        data = _read_upload_bytes(upload)
+        if not data:
+            raise ValueError(f"{file_name}: 文件为空")
+
+        try:
+            df = load_dataframe(data, file_name)
+        except Exception as exc:
+            raise ValueError(f"{file_name}: {exc}") from exc
+
+        file_summaries.append(
+            {
+                "file_name": file_name,
+                "rows": int(df.shape[0]),
+                "cols": int(df.shape[1]),
+                "columns": [str(c) for c in df.columns],
+            }
+        )
+        frames.append(df)
+
+    if len(frames) == 1:
+        merged_df = frames[0]
+    else:
+        existing_cols = {str(col) for frame in frames for col in frame.columns}
+        while source_col in existing_cols:
+            source_col += "_"
+
+        tagged_frames: list[pd.DataFrame] = []
+        for summary_item, frame in zip(file_summaries, frames):
+            tagged = frame.copy()
+            tagged[source_col] = summary_item["file_name"]
+            tagged_frames.append(tagged)
+
+        merged_df = pd.concat(tagged_frames, ignore_index=True, sort=False)
+
+    meta = {
+        "file_count": len(file_summaries),
+        "file_names": [item["file_name"] for item in file_summaries],
+        "files": file_summaries,
+        "total_rows": int(merged_df.shape[0]),
+        "total_cols": int(merged_df.shape[1]),
+        "source_column": source_col if len(file_summaries) > 1 else None,
+    }
+    return merged_df, meta
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -122,7 +210,9 @@ class ExportPdfRequest(BaseModel):
     file_name: str | None = None
 
 
-def _read_int_env(names: list[str], default: int, min_value: int, max_value: int) -> int:
+def _read_int_env(
+    names: list[str], default: int, min_value: int, max_value: int
+) -> int:
     for name in names:
         raw = os.getenv(name)
         if raw is None or raw == "":
@@ -135,9 +225,67 @@ def _read_int_env(names: list[str], default: int, min_value: int, max_value: int
     return max(min_value, min(default, max_value))
 
 
+def _run_text_call_with_timeout(
+    fn,
+    *,
+    timeout_seconds: int,
+    timeout_message: str,
+    error_prefix: str,
+) -> str:
+    future = _AI_CALL_POOL.submit(fn)
+    try:
+        result = future.result(timeout=timeout_seconds)
+    except FuturesTimeoutError:
+        future.cancel()
+        return timeout_message
+    except Exception as exc:
+        return f"[{error_prefix} unavailable] {exc}"
+
+    text = str(result or "").strip()
+    return text
+
+
+def _make_json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _make_json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_make_json_safe(v) for v in value]
+    if isinstance(value, tuple):
+        return [_make_json_safe(v) for v in value]
+
+    if isinstance(value, (np.floating, np.integer)):
+        value = value.item()
+
+    if isinstance(value, float):
+        if np.isnan(value) or np.isinf(value):
+            return None
+        return value
+
+    return value
+
+
+def _safe_json_response(payload: Dict[str, Any]) -> JSONResponse:
+    encoded = jsonable_encoder(
+        payload,
+        custom_encoder={
+            np.ndarray: lambda x: x.tolist(),
+            np.generic: lambda x: x.item(),
+            pd.Series: lambda x: x.tolist(),
+            pd.DataFrame: lambda x: x.to_dict(orient="records"),
+            tuple: lambda x: list(x),
+        },
+    )
+    safe_content = _make_json_safe(encoded)
+    return JSONResponse(safe_content)
+
+
 def _resolve_web_search_strategy() -> dict[str, Any]:
-    count = _read_int_env(["VOLC_WEBSEARCH_COUNT"], default=5, min_value=1, max_value=16)
-    timeout = _read_int_env(["VOLC_WEBSEARCH_TIMEOUT"], default=25, min_value=5, max_value=120)
+    count = _read_int_env(
+        ["VOLC_WEBSEARCH_COUNT"], default=5, min_value=1, max_value=16
+    )
+    timeout = _read_int_env(
+        ["VOLC_WEBSEARCH_TIMEOUT"], default=25, min_value=5, max_value=120
+    )
     search_type = os.getenv("VOLC_WEBSEARCH_SEARCH_TYPE") or "web_summary"
     normalized_type = str(search_type).strip().lower()
     need_content = normalized_type == "web"
@@ -157,7 +305,9 @@ def _contains_any_keyword(text: str, keywords: list[str]) -> bool:
     return any(keyword.lower() in lowered for keyword in keywords if keyword)
 
 
-def _resolve_search_keyword_policy(user_message: str, base_context_hint: str | None) -> tuple[list[str], list[str]]:
+def _resolve_search_keyword_policy(
+    user_message: str, base_context_hint: str | None
+) -> tuple[list[str], list[str]]:
     merged = f"{user_message}\n{base_context_hint or ''}"
     domain_keywords = ["硒产业", "富硒", "硒产品", "硒矿", "硒农业", "硒"]
     is_selenium_domain = _contains_any_keyword(merged, domain_keywords)
@@ -165,7 +315,15 @@ def _resolve_search_keyword_policy(user_message: str, base_context_hint: str | N
     if not is_selenium_domain:
         return [], []
 
-    preferred_keywords = ["硒产业", "富硒", "硒产品", "硒企业", "产业链", "地方标准", "品牌建设"]
+    preferred_keywords = [
+        "硒产业",
+        "富硒",
+        "硒产品",
+        "硒企业",
+        "产业链",
+        "地方标准",
+        "品牌建设",
+    ]
     blocked_keywords = [
         "拖欠工资",
         "欠薪",
@@ -193,9 +351,22 @@ def _is_generic_management_question(user_message: str) -> bool:
     if not text:
         return False
 
-    generic_terms = ["怎么做", "如何做", "怎么办", "建议", "策略", "负责人", "企业", "公司", "规划", "方向"]
+    generic_terms = [
+        "怎么做",
+        "如何做",
+        "怎么办",
+        "建议",
+        "策略",
+        "负责人",
+        "企业",
+        "公司",
+        "规划",
+        "方向",
+    ]
     domain_terms = ["硒", "富硒", "硒产业", "硒产品", "硒矿"]
-    return any(term in text for term in generic_terms) and not any(term in text for term in domain_terms)
+    return any(term in text for term in generic_terms) and not any(
+        term in text for term in domain_terms
+    )
 
 
 def _is_continuation_like_message(user_message: str) -> bool:
@@ -227,7 +398,9 @@ def _is_continuation_like_message(user_message: str) -> bool:
     return compact.startswith("继续") and len(compact) <= 8
 
 
-def _find_last_substantive_user_message(history: list[dict[str, str]], current_message: str) -> str:
+def _find_last_substantive_user_message(
+    history: list[dict[str, str]], current_message: str
+) -> str:
     target = (current_message or "").strip()
     for item in reversed(history or []):
         if item.get("role") != "user":
@@ -257,9 +430,10 @@ def _build_web_search_query(
         previous_query = _find_last_substantive_user_message(history or [], base_query)
         if previous_query:
             return previous_query
-    
+
     # 尽可能将用户的原始完整问句用作搜索 query，避免将其宽泛化导致每次特征相同
     return base_query
+
 
 def _build_chat_context_hint(
     user_message: str,
@@ -284,12 +458,18 @@ def _build_chat_context_hint(
 
     if _should_skip_web_search(user_message):
         meta["search_skipped"] = True
-        parts.append("[本轮问题属于寒暄/简短互动，已跳过联网检索以降低噪声并提升回答聚焦度。]")
+        parts.append(
+            "[本轮问题属于寒暄/简短互动，已跳过联网检索以降低噪声并提升回答聚焦度。]"
+        )
         return ("\n\n".join(parts) if parts else None, citations_markdown, meta)
 
     strategy = _resolve_web_search_strategy()
-    preferred_keywords, blocked_keywords = _resolve_search_keyword_policy(user_message, base_context_hint)
-    search_query = _build_web_search_query(user_message, base_context_hint, preferred_keywords, history=history)
+    preferred_keywords, blocked_keywords = _resolve_search_keyword_policy(
+        user_message, base_context_hint
+    )
+    search_query = _build_web_search_query(
+        user_message, base_context_hint, preferred_keywords, history=history
+    )
     strict_preferred = bool(preferred_keywords)
 
     search_count = strategy["count"]
@@ -317,7 +497,9 @@ def _build_chat_context_hint(
 
         # If domain constraints are active but no relevant result passes policy, retry with stronger domain terms.
         if not formatted and preferred_keywords:
-            retry_query = f"{preferred_keywords[0]} {user_message} 产业链 企业经营 发展策略"
+            retry_query = (
+                f"{preferred_keywords[0]} {user_message} 产业链 企业经营 发展策略"
+            )
             retry_query = re.sub(r"\s+", " ", retry_query).strip()
             if retry_query != search_query:
                 retry_result = web_search(
@@ -422,8 +604,25 @@ def _should_skip_web_search(user_message: str) -> bool:
         return True
 
     greeting_tokens = {
-        "你好", "您好", "嗨", "哈喽", "在吗", "在嘛", "早上好", "下午好", "晚上好",
-        "谢谢", "多谢", "辛苦了", "收到", "ok", "hi", "hello", "hey", "thanks", "thankyou",
+        "你好",
+        "您好",
+        "嗨",
+        "哈喽",
+        "在吗",
+        "在嘛",
+        "早上好",
+        "下午好",
+        "晚上好",
+        "谢谢",
+        "多谢",
+        "辛苦了",
+        "收到",
+        "ok",
+        "hi",
+        "hello",
+        "hey",
+        "thanks",
+        "thankyou",
     }
     if compact in greeting_tokens:
         return True
@@ -488,8 +687,13 @@ def _ensure_distinct_reply_if_needed(
             style_directive=style_directive,
             temperature=max(temperature, 0.42),
         )
-        rewritten_clean = _strip_mode_header(_strip_existing_citations(rewritten)).strip()
-        if rewritten_clean and _normalize_for_duplicate_check(rewritten_clean) != last_norm:
+        rewritten_clean = _strip_mode_header(
+            _strip_existing_citations(rewritten)
+        ).strip()
+        if (
+            rewritten_clean
+            and _normalize_for_duplicate_check(rewritten_clean) != last_norm
+        ):
             return rewritten_clean
     except Exception:
         pass
@@ -588,7 +792,9 @@ def _stream_with_citations(
     full_text = _strip_existing_citations("".join(full_text_parts))
 
     stream_body = _strip_mode_header(_strip_existing_citations(full_text)).strip()
-    if _normalize_for_duplicate_check(stream_body) == _normalize_for_duplicate_check(last_assistant_reply):
+    if _normalize_for_duplicate_check(stream_body) == _normalize_for_duplicate_check(
+        last_assistant_reply
+    ):
         try:
             rewritten = generate_free_chat_reply(
                 message=(
@@ -602,8 +808,12 @@ def _stream_with_citations(
                 style_directive=style_directive,
                 temperature=max(temperature, 0.42),
             )
-            rewritten_clean = _strip_mode_header(_strip_existing_citations(rewritten)).strip()
-            if rewritten_clean and _normalize_for_duplicate_check(rewritten_clean) != _normalize_for_duplicate_check(last_assistant_reply):
+            rewritten_clean = _strip_mode_header(
+                _strip_existing_citations(rewritten)
+            ).strip()
+            if rewritten_clean and _normalize_for_duplicate_check(
+                rewritten_clean
+            ) != _normalize_for_duplicate_check(last_assistant_reply):
                 yield f"\n\n差异化补充：\n{rewritten_clean}"
             else:
                 yield "\n\n差异化补充：建议从短期动作、中期建设、长期标准化三层推进，避免与历史答案同构。"
@@ -622,7 +832,9 @@ def _is_similar_user_message(msg1: str, msg2: str) -> bool:
     return len(s1 & s2) / max(len(s1), len(s2)) >= 0.75
 
 
-def _is_repeated_user_question(user_message: str, history: list[dict[str, str]]) -> bool:
+def _is_repeated_user_question(
+    user_message: str, history: list[dict[str, str]]
+) -> bool:
     target = (user_message or "").strip()
     if not target:
         return False
@@ -814,7 +1026,14 @@ def _build_pdf_bytes_from_markdown(markdown: str) -> bytes:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
-        from reportlab.platypus import Paragraph, Preformatted, SimpleDocTemplate, Spacer, Table, TableStyle
+        from reportlab.platypus import (
+            Paragraph,
+            Preformatted,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
     except Exception as exc:
         raise RuntimeError("缺少 reportlab 依赖，请先安装 requirements.txt") from exc
 
@@ -925,9 +1144,21 @@ def _build_pdf_bytes_from_markdown(markdown: str) -> bytes:
         # Convert links/code/emphasis to plain text, prioritizing content integrity over styling.
         src = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1（\2）", src)
         src = re.sub(r"`([^`]+)`", r"\1", src)
-        src = re.sub(r"\*\*\*([^*\n]+)\*\*\*|___([^_\n]+)___", lambda m: (m.group(1) or m.group(2) or ""), src)
-        src = re.sub(r"\*\*([^*\n]+)\*\*|__([^_\n]+)__", lambda m: (m.group(1) or m.group(2) or ""), src)
-        src = re.sub(r"(?<!\*)\*([^*\n]+)\*(?!\*)|(?<!_)_([^_\n]+)_(?!_)", lambda m: (m.group(1) or m.group(2) or ""), src)
+        src = re.sub(
+            r"\*\*\*([^*\n]+)\*\*\*|___([^_\n]+)___",
+            lambda m: (m.group(1) or m.group(2) or ""),
+            src,
+        )
+        src = re.sub(
+            r"\*\*([^*\n]+)\*\*|__([^_\n]+)__",
+            lambda m: (m.group(1) or m.group(2) or ""),
+            src,
+        )
+        src = re.sub(
+            r"(?<!\*)\*([^*\n]+)\*(?!\*)|(?<!_)_([^_\n]+)_(?!_)",
+            lambda m: (m.group(1) or m.group(2) or ""),
+            src,
+        )
 
         # Remove residual malformed markdown markers if model output is dirty.
         src = src.replace("**", "").replace("__", "")
@@ -959,13 +1190,15 @@ def _build_pdf_bytes_from_markdown(markdown: str) -> bytes:
         text = str(raw_text or "").strip()
         if not text:
             return []
-        positions = [m.start(2) for m in re.finditer(r"(^|\s)(\d+\s*[\.．、\)])\s+", text)]
+        positions = [
+            m.start(2) for m in re.finditer(r"(^|\s)(\d+\s*[\.．、\)])\s+", text)
+        ]
         if len(positions) <= 1:
             return [text]
         positions.append(len(text))
         items: list[str] = []
         for i in range(len(positions) - 1):
-            chunk = text[positions[i]:positions[i + 1]].strip(" \t;；")
+            chunk = text[positions[i] : positions[i + 1]].strip(" \t;；")
             if chunk:
                 items.append(chunk)
         return items or [text]
@@ -1090,7 +1323,9 @@ def _build_pdf_bytes_from_markdown(markdown: str) -> bytes:
             continue
 
         if is_heading_like_text(stripped):
-            style = h3 if re.match(r"^[一二三四五六七八九十百千]+[、.．]", stripped) else h4
+            style = (
+                h3 if re.match(r"^[一二三四五六七八九十百千]+[、.．]", stripped) else h4
+            )
             story.append(safe_paragraph(stripped, style))
             continue
 
@@ -1102,7 +1337,11 @@ def _build_pdf_bytes_from_markdown(markdown: str) -> bytes:
                 if not bullet_text:
                     continue
                 if is_heading_like_text(bullet_text):
-                    style = h3 if re.match(r"^[一二三四五六七八九十百千]+[、.．]", bullet_text) else h4
+                    style = (
+                        h3
+                        if re.match(r"^[一二三四五六七八九十百千]+[、.．]", bullet_text)
+                        else h4
+                    )
                     story.append(safe_paragraph(bullet_text, style))
                     continue
                 story.append(safe_paragraph(bullet_text, bullet, prefix="• "))
@@ -1146,85 +1385,102 @@ def serve_index() -> FileResponse:
 
 
 @app.post("/analyze")
-def analyze(file: UploadFile = File(...), prompt: str | None = Form(None)) -> JSONResponse:
-    try:
-        data = file.file.read()
-    finally:
-        file.file.close()
+def analyze(
+    files: list[UploadFile] | None = File(None),
+    file: UploadFile | None = File(None),
+    prompt: str | None = Form(None),
+) -> JSONResponse:
+    uploads = _collect_upload_files(files, file)
+    if not uploads:
+        raise HTTPException(status_code=400, detail="Please upload at least one file")
 
     try:
-        df = load_dataframe(data, file.filename)
+        df, upload_meta = _load_merged_dataframe_from_uploads(uploads)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse file: {e}")
 
     summary = summarize_dataframe(df)
+    summary["file_count"] = upload_meta["file_count"]
+    summary["file_names"] = upload_meta["file_names"]
+    summary["files"] = upload_meta["files"]
+    if upload_meta.get("source_column"):
+        summary["source_column"] = upload_meta["source_column"]
+
     viz_session_id = _set_viz_session(df, summary)
     figures = generate_default_figures(df, style_hint=prompt)
 
-    deepseek_suggestions = ""
-    deepseek_analysis = ""
-    try:
-        deepseek_suggestions = generate_chart_suggestions(summary, user_prompt=prompt)
-        deepseek_analysis = generate_text_analysis(summary, domain_hint="硒产业", user_prompt=prompt)
-    except Exception as e:
-        # Catch all DeepSeek-related failures (network, key, quota) and degrade gracefully
-        deepseek_suggestions = f"[DeepSeek unavailable] {e}"
-        deepseek_analysis = deepseek_suggestions
+    ai_timeout_seconds = _read_int_env(
+        ["ANALYZE_AI_TIMEOUT_SECONDS"],
+        default=300,
+        min_value=5,
+        max_value=1800,
+    )
 
-    coze_report = ""
-    try:
-        coze_report = generate_industry_report(summary, extra_instruction=prompt)
-    except Exception as e:
-        coze_report = f"[Coze unavailable] {e}"
+    deepseek_suggestions = _run_text_call_with_timeout(
+        lambda: generate_chart_suggestions(summary, user_prompt=prompt),
+        timeout_seconds=ai_timeout_seconds,
+        timeout_message=f"[DeepSeek timeout] 超过 {ai_timeout_seconds}s，已跳过图表建议生成",
+        error_prefix="DeepSeek",
+    )
+
+    deepseek_analysis = _run_text_call_with_timeout(
+        lambda: generate_text_analysis(
+            summary, domain_hint="硒产业", user_prompt=prompt
+        ),
+        timeout_seconds=ai_timeout_seconds,
+        timeout_message=f"[DeepSeek timeout] 超过 {ai_timeout_seconds}s，已跳过深度分析生成",
+        error_prefix="DeepSeek",
+    )
+
+    coze_report = _run_text_call_with_timeout(
+        lambda: generate_industry_report(summary, extra_instruction=prompt),
+        timeout_seconds=ai_timeout_seconds,
+        timeout_message=f"[Coze timeout] 超过 {ai_timeout_seconds}s，已跳过行业报告生成",
+        error_prefix="Coze",
+    )
 
     payload: Dict[str, Any] = {
         "summary": summary,
         "figures": figures,
         "viz_session_id": viz_session_id,
+        "upload_meta": upload_meta,
         "deepseek_suggestions": deepseek_suggestions,
         "deepseek_analysis": deepseek_analysis,
         "coze_report": coze_report,
     }
-    safe_payload = jsonable_encoder(
-        payload,
-        custom_encoder={
-            np.ndarray: lambda x: x.tolist(),
-            np.generic: lambda x: x.item(),
-            pd.Series: lambda x: x.tolist(),
-            pd.DataFrame: lambda x: x.to_dict(orient="records"),
-            tuple: lambda x: list(x),
-        },
-    )
-    return JSONResponse(safe_payload)
+    return _safe_json_response(payload)
 
 
 @app.post("/visualize_custom")
 def visualize_custom(
+    files: list[UploadFile] | None = File(None),
     file: UploadFile | None = File(None),
     prompt: str = Form(...),
     previous_code: str | None = Form(None),
     chart_image_data_url: str | None = Form(None),
     viz_session_id: str | None = Form(None),
 ) -> JSONResponse:
-    data: bytes | None = None
-    file_name = ""
-    if file is not None:
-        try:
-            data = file.file.read()
-        finally:
-            file.file.close()
-        file_name = str(file.filename or "")
+    uploads = _collect_upload_files(files, file)
 
     try:
         active_viz_session_id = ""
-        if data is not None:
-            df = load_dataframe(data, file_name)
+        if uploads:
+            df, upload_meta = _load_merged_dataframe_from_uploads(uploads)
             summary = summarize_dataframe(df)
-            active_viz_session_id = _set_viz_session(df, summary, session_id=viz_session_id)
+            summary["file_count"] = upload_meta["file_count"]
+            summary["file_names"] = upload_meta["file_names"]
+            summary["files"] = upload_meta["files"]
+            if upload_meta.get("source_column"):
+                summary["source_column"] = upload_meta["source_column"]
+            active_viz_session_id = _set_viz_session(
+                df, summary, session_id=viz_session_id
+            )
         else:
             cached = _get_viz_session(viz_session_id or "")
             if not cached:
-                raise ValueError("viz_session_id invalid or expired; please upload file again")
+                raise ValueError(
+                    "viz_session_id invalid or expired; please upload file again"
+                )
             df, summary = cached
             active_viz_session_id = str(viz_session_id or "")
 
@@ -1270,11 +1526,13 @@ def visualize_custom(
             "preset": "AI动态生成",
             "x": "自定义",
             "y": "自定义",
-            "applied_style": ["用户要求"]
+            "applied_style": ["用户要求"],
         }
     except Exception as e:
         short_err = _compact_error_message(e)
-        raise HTTPException(status_code=400, detail=f"Failed to generate custom chart: {short_err}")
+        raise HTTPException(
+            status_code=400, detail=f"Failed to generate custom chart: {short_err}"
+        )
 
     payload: Dict[str, Any] = {
         "figure": fig.to_plotly_json(),
@@ -1282,17 +1540,7 @@ def visualize_custom(
         "code": code,
         "viz_session_id": active_viz_session_id,
     }
-    safe_payload = jsonable_encoder(
-        payload,
-        custom_encoder={
-            np.ndarray: lambda x: x.tolist(),
-            np.generic: lambda x: x.item(),
-            pd.Series: lambda x: x.tolist(),
-            pd.DataFrame: lambda x: x.to_dict(orient="records"),
-            tuple: lambda x: list(x),
-        },
-    )
-    return JSONResponse(safe_payload)
+    return _safe_json_response(payload)
 
 
 @app.post("/chat")
@@ -1308,8 +1556,12 @@ def chat(req: ChatRequest) -> JSONResponse:
         web_search_enabled=req.web_search_enabled,
     )
     history = _sanitize_history_for_model(raw_history)
-    repeated_question = _is_repeated_user_question(user_message, history) or mode_switch_same_question
-    history = _prune_history_for_repeated_question(user_message, history, repeated_question)
+    repeated_question = (
+        _is_repeated_user_question(user_message, history) or mode_switch_same_question
+    )
+    history = _prune_history_for_repeated_question(
+        user_message, history, repeated_question
+    )
     style_directive = _build_reply_style_directive(
         web_search_enabled=req.web_search_enabled,
         repeated_question=repeated_question,
@@ -1351,7 +1603,9 @@ def chat(req: ChatRequest) -> JSONResponse:
     )
     reply = _append_mode_header(reply, mode_header)
 
-    return JSONResponse({"reply": _append_citations_to_reply(reply, citations_markdown)})
+    return JSONResponse(
+        {"reply": _append_citations_to_reply(reply, citations_markdown)}
+    )
 
 
 @app.post("/chat_stream")
@@ -1367,8 +1621,12 @@ def chat_stream(req: ChatRequest) -> StreamingResponse:
         web_search_enabled=req.web_search_enabled,
     )
     history = _sanitize_history_for_model(raw_history)
-    repeated_question = _is_repeated_user_question(user_message, history) or mode_switch_same_question
-    history = _prune_history_for_repeated_question(user_message, history, repeated_question)
+    repeated_question = (
+        _is_repeated_user_question(user_message, history) or mode_switch_same_question
+    )
+    history = _prune_history_for_repeated_question(
+        user_message, history, repeated_question
+    )
     style_directive = _build_reply_style_directive(
         web_search_enabled=req.web_search_enabled,
         repeated_question=repeated_question,
@@ -1404,7 +1662,7 @@ def chat_stream(req: ChatRequest) -> StreamingResponse:
             style_directive,
             temperature,
         ),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
     )
 
 
@@ -1420,12 +1678,15 @@ def export_pdf(req: ExportPdfRequest) -> StreamingResponse:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         short_err = _compact_error_message(exc, max_len=180)
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {short_err}")
+        raise HTTPException(
+            status_code=500, detail=f"PDF generation failed: {short_err}"
+        )
 
     filename = _safe_pdf_filename(req.file_name)
     quoted_filename = quote(filename)
     headers = {
         "Content-Disposition": f"attachment; filename=report.pdf; filename*=UTF-8''{quoted_filename}"
     }
-    return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf", headers=headers)
-
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes), media_type="application/pdf", headers=headers
+    )

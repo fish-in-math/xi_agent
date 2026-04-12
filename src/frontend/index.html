@@ -39,18 +39,21 @@
             width: 8px;
             height: 8px;
         }
+
         ::-webkit-scrollbar-track {
             background: rgba(0, 0, 0, 0.01);
             border-radius: 4px;
         }
+
         ::-webkit-scrollbar-thumb {
-            background: rgba(203, 213, 225, 0.6); 
+            background: rgba(203, 213, 225, 0.6);
             border-radius: 4px;
             border: 2px solid transparent;
             background-clip: padding-box;
         }
+
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(148, 163, 184, 0.8); 
+            background: rgba(148, 163, 184, 0.8);
             border: 2px solid transparent;
             background-clip: padding-box;
         }
@@ -76,9 +79,17 @@
         }
 
         @keyframes gradientShift {
-            0% { background-position: 0% 0%; }
-            50% { background-position: 100% 100%; }
-            100% { background-position: 0% 0%; }
+            0% {
+                background-position: 0% 0%;
+            }
+
+            50% {
+                background-position: 100% 100%;
+            }
+
+            100% {
+                background-position: 0% 0%;
+            }
         }
 
         .layout {
@@ -149,8 +160,11 @@
         .history-item::before {
             content: '';
             position: absolute;
-            top: 0; left: -100%; width: 100%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
             transition: left 0.5s ease;
         }
 
@@ -236,13 +250,13 @@
             position: relative;
             z-index: 5;
         }
-        
+
         .chat-header {
             padding: 20px 24px 16px;
             border-bottom: 1px solid var(--border);
             font-weight: 600;
             color: var(--ink);
-            background: rgba(255,255,255,0.8);
+            background: rgba(255, 255, 255, 0.8);
         }
 
         .top-bar {
@@ -260,7 +274,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.02);
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
         }
 
         .title::before {
@@ -279,7 +293,9 @@
         }
 
         @keyframes textShine {
-            to { background-position: 200% center; }
+            to {
+                background-position: 200% center;
+            }
         }
 
         .card {
@@ -291,7 +307,7 @@
             background: linear-gradient(145deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.45) 100%);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
-            box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.6);
+            box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
             animation: riseIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.4s ease;
         }
@@ -299,7 +315,7 @@
         .card:hover {
             transform: translateY(-4px) scale(1.002);
             background: linear-gradient(145deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.6) 100%);
-            box-shadow: 0 20px 40px -10px rgba(52, 211, 153, 0.08), inset 0 1px 0 rgba(255,255,255,0.8);
+            box-shadow: 0 20px 40px -10px rgba(52, 211, 153, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
             border-color: rgba(52, 211, 153, 0.2);
         }
 
@@ -337,11 +353,11 @@
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            border: 1px solid rgba(255,255,255,0.6);
+            border: 1px solid rgba(255, 255, 255, 0.6);
             border-radius: 16px;
             padding: 20px;
             background: rgba(255, 255, 255, 0.4);
-            box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.02);
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -357,8 +373,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(12px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+            from {
+                opacity: 0;
+                transform: translateY(12px) scale(0.98);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         .msg-wrapper.user {
@@ -407,12 +430,12 @@
             gap: 4px;
             line-height: 1;
         }
-        
+
         .msg-action-btn:hover {
             color: #0f172a;
             background: #e2e8f0;
         }
-        
+
         .msg-action-btn.delete-btn:hover {
             color: #ef4444;
             background: rgba(239, 68, 68, 0.1);
@@ -427,12 +450,12 @@
             justify-content: center;
             font-size: 18px;
             background: linear-gradient(135deg, #ffffff, #f1f5f9);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
             flex-shrink: 0;
-            border: 1px solid rgba(255,255,255,0.8);
+            border: 1px solid rgba(255, 255, 255, 0.8);
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        
+
         .msg-wrapper:hover .avatar {
             transform: scale(1.08) rotate(5deg);
             box-shadow: 0 6px 15px rgba(52, 211, 153, 0.15);
@@ -444,7 +467,7 @@
             padding: 14px 18px;
             line-height: 1.6;
             font-size: 14.5px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
             word-wrap: break-word;
             overflow: hidden;
             position: relative;
@@ -468,28 +491,36 @@
             box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
         }
 
-        .msg-bubble p:first-child { margin-top: 0; }
-        .msg-bubble p:last-child { margin-bottom: 0;line-height: inherit; }
+        .msg-bubble p:first-child {
+            margin-top: 0;
+        }
 
-        .msg-bubble a, .msg-bubble a:visited {
+        .msg-bubble p:last-child {
+            margin-bottom: 0;
+            line-height: inherit;
+        }
+
+        .msg-bubble a,
+        .msg-bubble a:visited {
             color: #2563eb;
             text-decoration: underline;
         }
+
         .msg-bubble a:hover {
             color: #1d4ed8;
         }
 
         .msg-bubble pre {
-            background: #1e293b; 
+            background: #1e293b;
             color: #f8fafc;
-            padding: 32px 14px 14px; 
-            border-radius: 8px; 
+            padding: 32px 14px 14px;
+            border-radius: 8px;
             overflow-x: auto;
             position: relative;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 13px;
         }
-        
+
         /* MacOS window dots for code blocks */
         .msg-bubble pre::before {
             content: '';
@@ -505,12 +536,12 @@
 
         .msg-bubble code {
             font-family: inherit;
-            background: rgba(0,0,0,0.05);
+            background: rgba(0, 0, 0, 0.05);
             padding: 2px 4px;
             border-radius: 4px;
             color: var(--accent-strong);
         }
-        
+
         .msg-bubble pre code {
             background: transparent;
             padding: 0;
@@ -523,13 +554,14 @@
             margin: 10px 0;
             font-size: 13.5px;
         }
-        
-        .msg-bubble th, .msg-bubble td {
+
+        .msg-bubble th,
+        .msg-bubble td {
             border: 1px solid var(--border);
             padding: 8px 12px;
             text-align: left;
         }
-        
+
         .msg-bubble th {
             background: rgba(52, 211, 153, 0.05);
             font-weight: 600;
@@ -578,7 +610,7 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -639,7 +671,7 @@
             color: var(--muted);
             font-size: 14px;
         }
-        
+
         /* Custom file input button styling */
         input[type="file"]::file-selector-button {
             border: 1px solid var(--border);
@@ -651,6 +683,7 @@
             transition: all 0.2s ease;
             margin-right: 12px;
         }
+
         input[type="file"]::file-selector-button:hover {
             background: #f1f5f9;
         }
@@ -669,13 +702,14 @@
             font-size: 14.5px;
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             font-family: inherit;
-            box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.02);
         }
+
         textarea:focus {
             outline: none;
             border-color: rgba(52, 211, 153, 0.5);
             background: #ffffff;
-            box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.1), 0 4px 12px rgba(0,0,0,0.05);
+            box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05);
         }
 
         .center-view {
@@ -804,7 +838,8 @@
             border-color: rgba(239, 68, 68, 0.55);
         }
 
-        .chart img, .output-box img {
+        .chart img,
+        .output-box img {
             max-width: 100%;
             height: auto;
             object-fit: contain;
@@ -814,12 +849,12 @@
             border: 1px solid rgba(226, 232, 240, 0.8);
             border-radius: 16px;
             padding: 16px;
-            background: linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.8) 100%);
+            background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
             backdrop-filter: blur(8px);
         }
-        
+
         .chart:hover {
             box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -5px rgba(0, 0, 0, 0.04);
             transform: translateY(-4px) scale(1.01);
@@ -848,7 +883,7 @@
             box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
             border-color: #cbd5e1;
         }
-        
+
         button:active {
             transform: translateY(0);
             box-shadow: none;
@@ -862,7 +897,7 @@
             -webkit-backdrop-filter: blur(12px);
             box-shadow: 0 4px 15px rgba(52, 211, 153, 0.1);
         }
-        
+
         .btn-primary:hover {
             background: rgba(52, 211, 153, 0.3);
             box-shadow: 0 6px 20px rgba(52, 211, 153, 0.2);
@@ -937,6 +972,7 @@
             color: var(--accent-strong);
             box-shadow: none;
         }
+
         .btn-link:hover {
             background: var(--accent-soft);
             box-shadow: none;
@@ -954,12 +990,12 @@
             -webkit-backdrop-filter: blur(10px);
             color: var(--ink);
             padding: 18px;
-            overflow-x: auto; 
+            overflow-x: auto;
             line-height: 1.6;
-            box-shadow: inset 0 2px 10px rgba(0,0,0,0.01);
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.01);
             transition: all 0.3s ease;
         }
-        
+
         .output-box:hover {
             background: rgba(255, 255, 255, 0.7);
         }
@@ -994,14 +1030,14 @@
                 gap: 10px;
             }
 
-            .top-bar > div:last-child {
+            .top-bar>div:last-child {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 8px;
                 justify-content: flex-end;
             }
 
-            .top-bar > div:last-child button {
+            .top-bar>div:last-child button {
                 margin: 0 !important;
             }
 
@@ -1082,12 +1118,14 @@
             touch-action: none;
         }
 
-        .chat-resizer:hover, .chat-resizer.dragging {
+        .chat-resizer:hover,
+        .chat-resizer.dragging {
             background: rgba(52, 211, 153, 0.6);
         }
 
         .chat-toggle-btn {
-            display: none !important; /* hidden by default on desktop */
+            display: none !important;
+            /* hidden by default on desktop */
         }
 
         .no-transition {
@@ -1111,9 +1149,11 @@
             <div class="top-bar">
                 <div class="title">硒产业智能体 · <span class="spark">自由对话与分析</span></div>
                 <div>
-                    <button id="exportPdfBtn" class="btn-primary" style="display: none; margin-right: 8px;">导出PDF</button>
+                    <button id="exportPdfBtn" class="btn-primary"
+                        style="display: none; margin-right: 8px;">导出PDF</button>
                     <button id="startVizBtn" class="btn-primary" style="margin-right: 8px;">开始可视化</button>
-                    <button id="backToReportTopBtn" class="btn-primary" style="display: none; margin-right: 8px;">返回分析页</button>
+                    <button id="backToReportTopBtn" class="btn-primary"
+                        style="display: none; margin-right: 8px;">返回分析页</button>
                     <button id="historyToggle">折叠记录栏</button>
                     <button id="chatToggle" class="chat-toggle-btn" style="margin-left: 8px;">开启对话</button>
                 </div>
@@ -1122,9 +1162,9 @@
             <div id="analysisEntryCard" class="card">
                 <div class="row">
                     <div>
-                        <label class="muted">选择数据文件（CSV/XLS/XLSX）</label>
+                        <label class="muted">选择数据文件（可多选，CSV/XLS/XLSX）</label>
                         <div class="input">
-                            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" />
+                            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" multiple />
                             <button id="analyzeBtn" class="btn-primary">分析</button>
                         </div>
                     </div>
@@ -1138,21 +1178,25 @@
 
             <div id="reportContainer" class="center-view">
                 <details class="card" open>
-                    <summary style="cursor: pointer; outline: none; font-size: 18px; font-weight: 600; color: #0f172a; border-bottom: 2px solid var(--accent-soft); padding-bottom: 8px; margin-bottom: 16px; user-select: none;">
+                    <summary
+                        style="cursor: pointer; outline: none; font-size: 18px; font-weight: 600; color: #0f172a; border-bottom: 2px solid var(--accent-soft); padding-bottom: 8px; margin-bottom: 16px; user-select: none;">
                         📊 数据摘要
                     </summary>
-                    <pre id="summary" style="background:rgba(255,255,255,0.7); padding:16px; border-radius:10px; border:1px solid var(--border); font-size:13.5px; line-height:1.5; margin: 0; white-space: pre-wrap; word-break: break-all; overflow-x: auto;"></pre>
+                    <pre id="summary"
+                        style="background:rgba(255,255,255,0.7); padding:16px; border-radius:10px; border:1px solid var(--border); font-size:13.5px; line-height:1.5; margin: 0; white-space: pre-wrap; word-break: break-all; overflow-x: auto;"></pre>
                 </details>
 
                 <details class="card" open>
-                    <summary style="cursor: pointer; outline: none; font-size: 18px; font-weight: 600; color: #0f172a; border-bottom: 2px solid var(--accent-soft); padding-bottom: 8px; margin-bottom: 16px; user-select: none;">
+                    <summary
+                        style="cursor: pointer; outline: none; font-size: 18px; font-weight: 600; color: #0f172a; border-bottom: 2px solid var(--accent-soft); padding-bottom: 8px; margin-bottom: 16px; user-select: none;">
                         🧠 深度分析建议 (DeepSeek)
                     </summary>
                     <div id="deepseekText" class="output-box"></div>
                 </details>
 
                 <details class="card" open>
-                    <summary style="cursor: pointer; outline: none; font-size: 18px; font-weight: 600; color: #0f172a; border-bottom: 2px solid var(--accent-soft); padding-bottom: 8px; margin-bottom: 16px; user-select: none;">
+                    <summary
+                        style="cursor: pointer; outline: none; font-size: 18px; font-weight: 600; color: #0f172a; border-bottom: 2px solid var(--accent-soft); padding-bottom: 8px; margin-bottom: 16px; user-select: none;">
                         📑 行业报告 (Coze)
                     </summary>
                     <div id="cozeText" class="output-box"></div>
@@ -1162,13 +1206,16 @@
             <div id="workbenchContainer" class="center-view hidden">
                 <div class="card">
                     <h2>🧪 可视化工作台</h2>
-                    
-                    <div id="vizSuggestionBox" style="display:none; margin: 12px 0; padding: 12px; background: rgba(52, 211, 153, 0.1); border-left: 4px solid var(--primary); border-radius: 4px; font-size: 14px; line-height: 1.5; color: #2d3748;">
+
+                    <div id="vizSuggestionBox"
+                        style="display:none; margin: 12px 0; padding: 12px; background: rgba(52, 211, 153, 0.1); border-left: 4px solid var(--primary); border-radius: 4px; font-size: 14px; line-height: 1.5; color: #2d3748;">
                         <strong style="color: var(--primary);">💡 绘图建议：</strong><span id="vizSuggestionText"></span>
                     </div>
 
                     <div class="viz-toolbar">
-                        <button id="undoChartBtn" class="preset-btn" style="display:none; background: #fffcf0; border-color: #fbd38d; color: #c05621;">⟲ 撤销上一步</button>
+                        <button id="undoChartBtn" class="preset-btn"
+                            style="display:none; background: #fffcf0; border-color: #fbd38d; color: #c05621;">⟲
+                            撤销上一步</button>
                         <button id="exportChartBtn" class="preset-btn" style="display:none;">导出当前图</button>
                     </div>
 
@@ -1177,11 +1224,14 @@
                     </div>
                     <div id="vizMeta" class="workbench-meta" style="display:none;"></div>
                     <span id="vizStatus" class="muted"></span>
-                    
-                    <div style="margin-top: 24px; padding: 16px; border-radius: 14px; background: rgba(52, 211, 153, 0.05); border: 1px solid rgba(52, 211, 153, 0.2);">
+
+                    <div
+                        style="margin-top: 24px; padding: 16px; border-radius: 14px; background: rgba(52, 211, 153, 0.05); border: 1px solid rgba(52, 211, 153, 0.2);">
                         <div class="muted" style="margin-bottom: 8px;">对话式图表生成（支持语义推断）</div>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="text" id="vizChatInput" placeholder="例如: 帮我画一个折线图，要nature学术风格，淡蓝色，透明玻璃质感，数据包含所有列" style="flex: 1; min-width: 280px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px; background: rgba(255,255,255,0.8);" />
+                            <input type="text" id="vizChatInput"
+                                placeholder="例如: 帮我画一个折线图，要nature学术风格，淡蓝色，透明玻璃质感，数据包含所有列"
+                                style="flex: 1; min-width: 280px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px; background: rgba(255,255,255,0.8);" />
                             <button id="btnVizNewChart" class="viz-action-btn viz-action-btn-new">新图</button>
                             <button id="btnVizChatSend" class="btn-primary viz-action-btn">生成</button>
                         </div>
@@ -1203,8 +1253,10 @@
                 <div class="composer">
                     <textarea id="chatInput" placeholder="输入你的问题... (Shift+Enter 换行)"></textarea>
                     <div class="composer-actions">
-                        <button id="webSearchToggleBtn" class="btn-chat-send btn-web-search chat-action-btn" type="button" aria-pressed="false">联网搜索</button>
-                        <button id="stopChatBtn" class="btn-chat-send chat-action-btn" style="display: none; background: #ff6b6b; border-color: #ff6b6b; color: white;">停止输出</button>
+                        <button id="webSearchToggleBtn" class="btn-chat-send btn-web-search chat-action-btn"
+                            type="button" aria-pressed="false">联网搜索</button>
+                        <button id="stopChatBtn" class="btn-chat-send chat-action-btn"
+                            style="display: none; background: #ff6b6b; border-color: #ff6b6b; color: white;">停止输出</button>
                         <button id="sendChatBtn" class="btn-chat-send chat-action-btn">发送 (Enter)</button>
                     </div>
                 </div>
